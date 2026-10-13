@@ -24,6 +24,10 @@ class SeedlyInput extends StatefulWidget {
     this.enabled = true,
     this.variant = SeedlyInputVariant.outline,
     this.size = SeedlyInputSize.large,
+    this.minLines,
+    this.maxLines = 1,
+    this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final String label;
@@ -38,9 +42,24 @@ class SeedlyInput extends StatefulWidget {
   final SeedlyInputVariant variant;
   final SeedlyInputSize size;
 
+  /// Multi-line inputs such as a description: Figma's is 3 lines tall.
+  final int? minLines;
+  final int? maxLines;
+
+  /// Caps the text without showing a counter.
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
+
   @override
   State<SeedlyInput> createState() => _SeedlyInputState();
 }
+
+Widget? _noCounter(
+  BuildContext context, {
+  required int currentLength,
+  required bool isFocused,
+  required int? maxLength,
+}) => null;
 
 class _SeedlyInputState extends State<SeedlyInput> {
   bool _obscured = true;
@@ -62,6 +81,12 @@ class _SeedlyInputState extends State<SeedlyInput> {
       textInputAction: widget.textInputAction,
       autofillHints: widget.autofillHints,
       obscureText: widget.password && _obscured,
+      minLines: widget.minLines,
+      maxLines: widget.password ? 1 : widget.maxLines,
+      maxLength: widget.maxLength,
+      // No counter under the field, even with maxLength.
+      buildCounter: _noCounter,
+      textCapitalization: widget.textCapitalization,
       style: const TextStyle(fontSize: 16, height: 24 / 16),
       decoration: InputDecoration(
         hintText: widget.hint,

@@ -225,7 +225,7 @@ void main() {
 
     final alert = tester.widget<SeedlyAlert>(find.byType(SeedlyAlert));
     expect(alert.style, SeedlyAlertStyle.danger);
-    expect(alert.title, 'Revisa tus datos');
+    expect(alert.title, 'Campos incompletos');
     expect(
       find.descendant(
         of: find.byType(SeedlyInput),

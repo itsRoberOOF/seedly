@@ -98,6 +98,38 @@ abstract final class SeedlyPalette {
   static const Color shadow = Color(0x1F000000);
 }
 
+/// Figma's drop shadows. Figma applies each effect twice, so they are
+/// stacked twice here too.
+abstract final class SeedlyShadows {
+  static const _card = BoxShadow(
+    color: SeedlyPalette.shadow,
+    offset: Offset(0, 2),
+    blurRadius: 4,
+    spreadRadius: -2,
+  );
+  static const _tag = BoxShadow(
+    color: SeedlyPalette.shadow,
+    offset: Offset(0, 6),
+    blurRadius: 8,
+    spreadRadius: -6,
+  );
+  static const _floating = BoxShadow(
+    color: SeedlyPalette.shadow,
+    offset: Offset(0, 8),
+    blurRadius: 28,
+    spreadRadius: -6,
+  );
+
+  /// Cards, inputs, segment controls and avatars.
+  static const card = [_card, _card];
+
+  /// Tags (chips).
+  static const tag = [_tag, _tag];
+
+  /// Small buttons floating over other content, like the avatar's edit.
+  static const floating = [_floating, _floating];
+}
+
 /// Figma spacing and radius scales for custom Seedly widgets.
 abstract final class SeedlyMetrics {
   static const spacing = <String, double>{

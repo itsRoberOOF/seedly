@@ -12,7 +12,7 @@ enum SeedlyAddOption {
   ),
   expressProject(
     'Proyecto Express',
-    'Ideal para proyectos de una sola tarea o ideas rápidas',
+    'Ideal para proyectos de pocas tareas o ideas rápidas',
     'assets/images/add_express_project.svg',
   ),
   fullProject(

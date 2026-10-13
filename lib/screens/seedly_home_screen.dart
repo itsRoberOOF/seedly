@@ -2,18 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../modals/seedly_add_modal.dart';
 import '../services/seedly_auth.dart';
+import '../services/seedly_projects.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_menu.dart';
+import 'seedly_create_project_view.dart';
 import 'seedly_login_screen.dart';
 
 /// Signed-in shell: the bottom menu switches the active tab. Every tab is
-/// still an empty page except Mi perfil, which only offers signing out.
+/// still an empty page except Mi perfil, which only offers signing out. The
+/// add button's project forms open over the current tab, menu included.
 class SeedlyHomeScreen extends StatefulWidget {
-  const SeedlyHomeScreen({super.key, required this.auth});
+  const SeedlyHomeScreen({super.key, required this.auth, this.projects});
 
   final SeedlyAuth auth;
+
+  /// Defaults to Firestore; tests pass a fake.
+  final SeedlyProjects? projects;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -22,6 +28,12 @@ class SeedlyHomeScreen extends StatefulWidget {
 class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   var _active = SeedlyMenuTab.inicio;
   bool _signingOut = false;
+
+  /// The project form being filled in, if any.
+  SeedlyProjectKind? _creating;
+
+  late final SeedlyProjects _projects =
+      widget.projects ?? FirebaseSeedlyProjects();
 
   Future<void> _signOut() async {
     if (_signingOut) return;
@@ -51,26 +63,68 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   Future<void> _add() async {
     final option = await showSeedlyAddModal(context);
     if (option == null || !mounted) return;
-    // None of the creation flows exist yet.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text('${option.title} aún no disponible')),
-      );
+    switch (option) {
+      case SeedlyAddOption.fullProject:
+        setState(() => _creating = SeedlyProjectKind.full);
+      case SeedlyAddOption.expressProject:
+        setState(() => _creating = SeedlyProjectKind.express);
+      case SeedlyAddOption.task:
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text('${option.title} aún no disponible')),
+          );
+    }
+  }
+
+  void _closeForm() {
+    hideSeedlyAlert();
+    setState(() => _creating = null);
+  }
+
+  void _created(NewSeedlyProject project, SeedlyProjectSave save) {
+    setState(() => _creating = null);
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.success,
+      title: 'Proyecto creado',
+      message: switch (save) {
+        SeedlyProjectSave.saved =>
+          '«${project.name}» ya está en tus proyectos.',
+        SeedlyProjectSave.pendingSync =>
+          '«${project.name}» se guardará cuando vuelva la conexión.',
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final creating = _creating;
+    // An open form handles the system back button itself, closing before
+    // the app does.
     return Scaffold(
       backgroundColor: SeedlyPalette.neutral[100],
-      body: _active == SeedlyMenuTab.perfil
+      body: creating != null
+          ? SeedlyCreateProjectView(
+              // A new key per variant opened from the modal starts a fresh
+              // form.
+              key: ValueKey(creating),
+              projects: _projects,
+              initialKind: creating,
+              onClose: _closeForm,
+              onCreated: _created,
+            )
+          : _active == SeedlyMenuTab.perfil
           ? Center(
               child: SeedlyButton(label: 'Cerrar sesión', onPressed: _signOut),
             )
           : null,
       bottomNavigationBar: SeedlyMenu(
         active: _active,
-        onSelected: (tab) => setState(() => _active = tab),
+        onSelected: (tab) {
+          if (_creating != null) _closeForm();
+          setState(() => _active = tab);
+        },
         onAdd: _add,
       ),
     );

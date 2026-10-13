@@ -15,10 +15,16 @@ class SeedlyModal extends StatelessWidget {
     this.showClose = true,
     this.onClose,
     this.padding = const EdgeInsets.fromLTRB(24, 40, 24, 20),
+    this.childScrolls = false,
   });
 
   /// The Figma "Content" slot.
   final Widget child;
+
+  /// Set when [child] is its own scroll view, such as a `ListView.builder`
+  /// for a long list: the modal then doesn't wrap it in another one and
+  /// [child] applies [scrollPadding] itself. The modal takes its full height.
+  final bool childScrolls;
 
   /// Figma's "Button" property: the round close button under the content.
   final bool showClose;
@@ -33,6 +39,11 @@ class SeedlyModal extends StatelessWidget {
 
   /// Space inside the scroll view so the last card's shadow isn't clipped.
   static const _shadowRoom = 4.0;
+
+  /// The padding a [childScrolls] child gives its scroll view; the bottom
+  /// part of [padding] stays outside it, fixed above the close button.
+  static EdgeInsets scrollPadding(EdgeInsets padding) =>
+      padding.copyWith(bottom: _shadowRoom);
 
   @override
   Widget build(BuildContext context) {
@@ -74,10 +85,12 @@ class SeedlyModal extends StatelessWidget {
           // is clipped there and never runs into the close button, as in
           // Figma's "Modal tareas"; a little stays inside for card shadows.
           Flexible(
-            child: SingleChildScrollView(
-              padding: padding.copyWith(bottom: _shadowRoom),
-              child: child,
-            ),
+            child: childScrolls
+                ? child
+                : SingleChildScrollView(
+                    padding: scrollPadding(padding),
+                    child: child,
+                  ),
           ),
           SizedBox(height: padding.bottom),
           if (showClose) ...[
@@ -134,6 +147,7 @@ Future<T?> showSeedlyModal<T>(
   required WidgetBuilder builder,
   bool showClose = true,
   EdgeInsets padding = const EdgeInsets.fromLTRB(24, 40, 24, 20),
+  bool childScrolls = false,
 }) {
   return showModalBottomSheet<T>(
     context: context,
@@ -151,6 +165,7 @@ Future<T?> showSeedlyModal<T>(
     builder: (context) => SeedlyModal(
       showClose: showClose,
       padding: padding,
+      childScrolls: childScrolls,
       child: Builder(builder: builder),
     ),
   );

@@ -110,15 +110,32 @@ void main() {
       final add = tester.getRect(find.bySemanticsLabel('Agregar'));
       expect(
         add.left - tester.getRect(find.text('Proyectos')).right,
-        greaterThanOrEqualTo(8),
+        greaterThanOrEqualTo(16),
         reason: '$width',
       );
       expect(
         tester.getRect(find.text('Riego')).left - add.right,
-        greaterThanOrEqualTo(8),
+        greaterThanOrEqualTo(16),
         reason: '$width',
       );
     }
+  });
+
+  testWidgets('the outer tabs sit close to the screen edges', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SeedlyTheme.light,
+        home: const Scaffold(
+          bottomNavigationBar: SeedlyMenu(active: SeedlyMenuTab.inicio),
+        ),
+      ),
+    );
+    // With Figma's 24px sides the icons were ~59px in; now ~44px.
+    expect(tester.getCenter(find.text('Inicio')).dx, lessThan(46));
+    expect(390 - tester.getCenter(find.text('Mi perfil')).dx, lessThan(46));
   });
 
   testWidgets('only enabled tabs report taps', (tester) async {
@@ -141,7 +158,7 @@ void main() {
     expect(taps, [SeedlyMenuTab.proyectos]);
   });
 
-  for (final (inset, height) in [(0.0, 96.0), (8.0, 96.0), (34.0, 114.0)]) {
+  for (final (inset, height) in [(0.0, 104.0), (8.0, 104.0), (34.0, 122.0)]) {
     testWidgets('a ${inset}px system bar inset makes the menu ${height}px', (
       tester,
     ) async {
@@ -156,7 +173,7 @@ void main() {
           ),
         ),
       );
-      // 8px over Figma's 88px; the inset replaces the 16px bottom padding
+      // 16px over Figma's 88px; the inset replaces the 16px bottom padding
       // instead of adding to it.
       expect(tester.getSize(find.byType(SeedlyMenu)).height, height);
     });

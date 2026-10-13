@@ -36,8 +36,15 @@ class SeedlyMenu extends StatelessWidget {
   /// The add button only responds when set.
   final VoidCallback? onAdd;
 
-  /// Extra padding on each side of the tabs, over Figma's 16px.
-  static const _extra = 4.0;
+  /// Extra padding above and below the tabs, over Figma's 16px.
+  static const _extraTop = 4.0;
+  static const _extraBottom = 12.0;
+
+  /// Left and right padding.
+  static const _side = 8.0;
+
+  /// Space on each side of the add button.
+  static const _addGap = 16.0;
 
   @override
   Widget build(BuildContext context) {
@@ -62,23 +69,24 @@ class SeedlyMenu extends StatelessWidget {
         borderRadius: radius,
         border: Border.fromBorderSide(BorderSide(color: SeedlyPalette.border)),
       ),
-      // 4px taller than Figma's 16px top and bottom padding, by request.
-      // The system bar's inset already leaves room below the tabs, so it
-      // replaces the bottom padding instead of adding to it; the extra 4px
-      // go on top of it so the bar is always 8px taller.
+      // Taller than Figma's 16px top and bottom padding, by request: the
+      // add button reaches lower than the labels and looked stuck to the
+      // system bar. The bar's inset replaces Figma's 16px below instead of
+      // adding to it, and the extra space goes on top of either. Sides are
+      // narrower than Figma's 24px so the outer tabs sit near the edges.
       padding: EdgeInsets.fromLTRB(
-        24,
-        16 + _extra,
-        24,
-        math.max(16, MediaQuery.paddingOf(context).bottom) + _extra,
+        _side,
+        16 + _extraTop,
+        _side,
+        math.max(16, MediaQuery.paddingOf(context).bottom) + _extraBottom,
       ),
       child: Row(
         children: [
           tab(SeedlyMenuTab.inicio),
           tab(SeedlyMenuTab.proyectos),
-          // Keeps the inner labels off the button on narrow phones.
+          // Lets the add button breathe and keeps the inner labels off it.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: _addGap),
             child: _AddButton(onPressed: onAdd),
           ),
           tab(SeedlyMenuTab.riego),

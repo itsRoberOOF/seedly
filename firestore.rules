@@ -10,8 +10,46 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Projects live at the root so tasks from every project can be queried
+    // together. `ownerId` says whose they are: rules aren't filters, so
+    // every query must also filter on it or Firestore rejects it.
+    match /projects/{projectId} {
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && validProject()
+        && request.resource.data.createdAt == request.time;
+      allow update: if ownsExisting() && ownsIncoming() && validProject()
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    // Tasks point at their project with `projectId`; it must be one of the
+    // caller's projects, which may be created in the same batch.
+    match /tasks/{taskId} {
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && validTask()
+        && ownsProject(request.resource.data.projectId)
+        && request.resource.data.createdAt == request.time;
+      allow update: if ownsExisting() && ownsIncoming() && validTask()
+        && request.resource.data.projectId == resource.data.projectId
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
+    }
+
+    function ownsExisting() {
+      return request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
+    function ownsIncoming() {
+      return request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // getAfter sees a project written earlier in the same batch.
+    function ownsProject(projectId) {
+      let project = getAfter(/databases/$(database)/documents/projects/$(projectId));
+      return project != null && project.data.ownerId == request.auth.uid;
     }
 
     function validProfile() {
@@ -24,6 +62,47 @@ service cloud.firestore {
         && data.providers is list
         && data.createdAt is timestamp
         && data.lastSignInAt == request.time;
+    }
+
+    function validProject() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(
+               ['ownerId', 'name', 'description', 'icon', 'photo', 'kind', 'startDate',
+                'endDate', 'taskCount', 'doneCount', 'createdAt'])
+        // An avatar-sized JPEG; Firestore documents cap at 1 MiB.
+        && (data.get('photo', null) == null
+            || (data.photo is bytes && data.photo.size() <= 262144))
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && (data.description == null
+            || (data.description is string && data.description.size() <= 500))
+        && data.icon is string && data.icon.size() <= 32
+        && data.kind in ['express', 'full']
+        && (data.startDate == null || data.startDate is timestamp)
+        && (data.endDate == null || data.endDate is timestamp)
+        && (data.startDate == null || data.endDate == null
+            || data.endDate >= data.startDate)
+        && data.taskCount is int && data.doneCount is int
+        && data.doneCount >= 0 && data.doneCount <= data.taskCount;
+    }
+
+    function validTask() {
+      let data = request.resource.data;
+      let dueDate = data.get('dueDate', null);
+      let dueMinutes = data.get('dueMinutes', null);
+      let reminder = data.get('reminderMinutes', null);
+      return data.keys().hasOnly(
+               ['ownerId', 'projectId', 'title', 'done', 'order', 'dueDate', 'dueMinutes',
+                'reminderMinutes', 'createdAt'])
+        && data.projectId is string
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.done is bool
+        && data.order is int && data.order >= 0
+        && (dueDate == null || dueDate is timestamp)
+        // A time of day needs a day, and a reminder needs that time.
+        && (dueMinutes == null
+            || (dueDate != null && dueMinutes is int
+                && dueMinutes >= 0 && dueMinutes < 1440))
+        && (reminder == null || (dueMinutes != null && reminder in [10, 30, 60]));
     }
   }
 }

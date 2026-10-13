@@ -83,7 +83,7 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
       showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
-        title: 'Revisa tus datos',
+        title: 'Campos incompletos',
         message: [
           _emailError(_email.text),
           _passwordError(_password.text),

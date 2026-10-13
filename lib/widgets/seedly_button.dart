@@ -4,7 +4,7 @@ import '../theme/seedly_theme.dart';
 
 enum SeedlyButtonVariant { filled, outline, text }
 
-enum SeedlyButtonSize { medium, giant }
+enum SeedlyButtonSize { small, medium, large, giant }
 
 /// Reusable Figma Button variants: Filled, Outline and Only Text.
 class SeedlyButton extends StatelessWidget {
@@ -17,6 +17,7 @@ class SeedlyButton extends StatelessWidget {
     this.leading,
     this.trailing,
     this.expand = false,
+    this.foreground,
   });
 
   final String label;
@@ -27,23 +28,23 @@ class SeedlyButton extends StatelessWidget {
   final Widget? trailing;
   final bool expand;
 
+  /// Text and icon colour for outline and text buttons, such as the grey
+  /// "Cancelar"; filled buttons stay white on green.
+  final Color? foreground;
+
   @override
   Widget build(BuildContext context) {
-    final giant = size == SeedlyButtonSize.giant;
     final filled = variant == SeedlyButtonVariant.filled;
     final textOnly = variant == SeedlyButtonVariant.text;
     final color = SeedlyPalette.primary[500]!;
+    final (height, fontSize) = switch (size) {
+      SeedlyButtonSize.small => (32.0, 12.0),
+      SeedlyButtonSize.medium => (44.0, 14.0),
+      SeedlyButtonSize.large => (48.0, 16.0),
+      SeedlyButtonSize.giant => (60.0, 18.0),
+    };
     final style = ButtonStyle(
-      minimumSize: WidgetStatePropertyAll(
-        Size(
-          0,
-          textOnly
-              ? 20
-              : giant
-              ? 60
-              : 44,
-        ),
-      ),
+      minimumSize: WidgetStatePropertyAll(Size(0, textOnly ? 20 : height)),
       padding: WidgetStatePropertyAll(
         textOnly
             ? const EdgeInsets.symmetric(horizontal: 4)
@@ -56,10 +57,11 @@ class SeedlyButton extends StatelessWidget {
         return filled ? color : Colors.transparent;
       }),
       foregroundColor: WidgetStateProperty.resolveWith((states) {
+        // A disabled filled button keeps white text on its pale green.
         if (states.contains(WidgetState.disabled)) {
-          return SeedlyPalette.neutral[600];
+          return filled ? Colors.white : SeedlyPalette.neutral[600];
         }
-        return filled ? Colors.white : color;
+        return filled ? Colors.white : foreground ?? color;
       }),
       side: textOnly || filled
           ? null
@@ -72,7 +74,7 @@ class SeedlyButton extends StatelessWidget {
       textStyle: WidgetStatePropertyAll(
         TextStyle(
           fontFamily: SeedlyTheme.fontFamily,
-          fontSize: giant ? 18 : 14,
+          fontSize: fontSize,
           height: 1,
           fontWeight: FontWeight.w600,
         ),

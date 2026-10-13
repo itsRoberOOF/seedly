@@ -184,7 +184,7 @@ void main() {
       ['Crear tarea', 'Proyecto Express', 'Proyecto completo'],
     );
     expect(
-      find.text('Ideal para proyectos de una sola tarea o ideas rápidas'),
+      find.text('Ideal para proyectos de pocas tareas o ideas rápidas'),
       findsOneWidget,
     );
 
