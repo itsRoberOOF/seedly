@@ -1,4 +1,4 @@
-package com.example.seedly
+package com.seedly.app
 
 import io.flutter.embedding.android.FlutterActivity
 

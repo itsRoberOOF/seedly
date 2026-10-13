@@ -1,0 +1,82 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/screens/seedly_home_screen.dart';
+import 'package:seedly/screens/seedly_login_screen.dart';
+import 'package:seedly/services/seedly_auth.dart';
+import 'package:seedly/theme/seedly_theme.dart';
+import 'package:seedly/widgets/seedly_alert.dart';
+
+import 'support/fake_seedly_auth.dart';
+
+Future<FakeSeedlyAuth> _openProfile(
+  WidgetTester tester, {
+  SeedlyAuthException? signOutError,
+}) async {
+  final auth = FakeSeedlyAuth(isSignedIn: true)..signOutError = signOutError;
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: SeedlyTheme.light,
+      home: SeedlyHomeScreen(auth: auth),
+    ),
+  );
+  await tester.tap(find.text('Mi perfil'));
+  await tester.pump();
+  return auth;
+}
+
+void main() {
+  tearDown(hideSeedlyAlert);
+
+  testWidgets('only Mi perfil shows the sign-out button, centred', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SeedlyTheme.light,
+        home: SeedlyHomeScreen(auth: FakeSeedlyAuth(isSignedIn: true)),
+      ),
+    );
+    expect(find.text('Cerrar sesión'), findsNothing);
+
+    await tester.tap(find.text('Proyectos'));
+    await tester.pump();
+    expect(find.text('Cerrar sesión'), findsNothing);
+
+    await tester.tap(find.text('Mi perfil'));
+    await tester.pump();
+    final button = tester.getCenter(find.text('Cerrar sesión'));
+    final body = tester.getRect(
+      find.byWidgetPredicate((widget) => widget is Center),
+    );
+    expect(button.dx, closeTo(body.center.dx, 1));
+    expect(button.dy, closeTo(body.center.dy, 1));
+  });
+
+  testWidgets('signing out returns to the login screen', (tester) async {
+    final auth = await _openProfile(tester);
+    await tester.tap(find.text('Cerrar sesión'));
+    await tester.pumpAndSettle();
+
+    expect(auth.signOutCalls, 1);
+    expect(auth.isSignedIn, isFalse);
+    expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+    expect(find.byType(SeedlyHomeScreen), findsNothing);
+  });
+
+  testWidgets('a failed sign-out shows an alert and keeps the session', (
+    tester,
+  ) async {
+    final auth = await _openProfile(
+      tester,
+      signOutError: const SeedlyAuthException('Sin conexión.'),
+    );
+    await tester.tap(find.text('Cerrar sesión'));
+    await tester.pumpAndSettle();
+
+    final alert = tester.widget<SeedlyAlert>(find.byType(SeedlyAlert));
+    expect(alert.title, 'No se pudo cerrar sesión');
+    expect(alert.message, 'Sin conexión.');
+    expect(auth.isSignedIn, isTrue);
+    expect(find.byType(SeedlyHomeScreen), findsOneWidget);
+  });
+}

@@ -1,30 +1,58 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:seedly/main.dart';
+import 'package:seedly/widgets/seedly_loader.dart';
+
+import 'support/fake_seedly_auth.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Seedly opens on its loading screen', (tester) async {
+    await tester.pumpWidget(MyApp(auth: FakeSeedlyAuth()));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Seedly'), findsOneWidget);
+    expect(find.text('Todo progreso empieza\ncon una semilla'), findsOneWidget);
+    expect(find.text('CARGANDO'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('Loading remains at zero before the first visible frame', (
+    tester,
+  ) async {
+    tester.binding.deferFirstFrame();
+    try {
+      await tester.pumpWidget(MyApp(auth: FakeSeedlyAuth()));
+      await tester.pump(const Duration(milliseconds: 1500));
+
+      final progress = tester
+          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+          .value;
+      expect(progress, 0);
+    } finally {
+      tester.binding.allowFirstFrame();
+    }
+  });
+
+  testWidgets('Loading bar reaches each fifth in three seconds', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: SeedlyLoader(startAfter: Future<void>.value())),
+      ),
+    );
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    double progress() => tester
+        .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+        .value!;
+
+    expect(progress(), 0);
+    for (var step = 1; step <= 5; step++) {
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(progress(), closeTo(step / 5, 0.001));
+    }
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(progress(), 1);
   });
 }

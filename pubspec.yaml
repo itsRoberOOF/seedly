@@ -34,6 +34,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_svg: ^2.3.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  google_sign_in: ^7.2.0
+  cloud_firestore: ^6.10.0
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +61,33 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/images/seedly_logo_icon.svg
+    - assets/images/login_eye.svg
+    - assets/images/input_warning_circle.svg
+    - assets/images/alert_info.svg
+    - assets/images/alert_cancel.svg
+    - assets/images/menu_home.svg
+    - assets/images/menu_projects.svg
+    - assets/images/menu_watering.svg
+    - assets/images/menu_profile.svg
+    - assets/images/menu_plus.svg
+    - assets/images/add_task.svg
+    - assets/images/add_express_project.svg
+    - assets/images/add_full_project.svg
+    - assets/images/card_arrow_right.svg
+    - assets/images/login_enter.svg
+    - assets/images/login_google.svg
+    - assets/images/login_apple.svg
+
+  fonts:
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-Variable.ttf
+    - family: Denk One
+      fonts:
+        - asset: assets/fonts/denk_one/DenkOne-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

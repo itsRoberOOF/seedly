@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "479138116444",
+    "project_id": "seedly-54ac7",
+    "storage_bucket": "seedly-54ac7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:479138116444:android:83f2dcb96d2142b7998799",
+        "android_client_info": {
+          "package_name": "com.seedly.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "479138116444-i3icjtjlog089nv02j7a0oj7hjj23i2h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.seedly.app",
+            "certificate_hash": "f6d75118f013c865e75bbc3e620b25d894449daa"
+          }
+        },
+        {
+          "client_id": "479138116444-7gv9flaqc6grni5gre1n35033luss1ar.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeZBvU5rN2_Nh7Lp-mVOVA71gArkEnS3Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "479138116444-7gv9flaqc6grni5gre1n35033luss1ar.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
