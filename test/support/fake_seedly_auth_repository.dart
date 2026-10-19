@@ -1,16 +1,23 @@
 import 'package:seedly/models/seedly_errors.dart';
-import 'package:seedly/services/seedly_auth.dart';
+import 'package:seedly/repositories/seedly_auth_repository.dart';
 
-/// In-memory [SeedlyAuth] so widget tests never reach Firebase.
-class FakeSeedlyAuth implements SeedlyAuth {
-  FakeSeedlyAuth({
+/// In-memory [SeedlyAuthRepository] so widget tests never reach Firebase.
+class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
+  FakeSeedlyAuthRepository({
     this.isSignedIn = false,
     this.error,
     this.googleResult = true,
+    this.uid = 'ana',
   });
 
   @override
   bool isSignedIn;
+
+  /// The id [currentUserId] reports while signed in.
+  final String uid;
+
+  @override
+  String? get currentUserId => isSignedIn ? uid : null;
 
   /// Thrown by both sign-in methods when set.
   SeedlyAuthException? error;

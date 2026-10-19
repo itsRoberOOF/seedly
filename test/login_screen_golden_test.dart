@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
 void main() {
   testWidgets('Login screen at Figma phone size', (tester) async {
@@ -23,7 +23,7 @@ void main() {
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     expect(tester.takeException(), isNull);
@@ -49,7 +49,7 @@ void main() {
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     expect(tester.takeException(), isNull);

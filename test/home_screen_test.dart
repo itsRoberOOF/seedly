@@ -6,13 +6,14 @@ import 'package:seedly/screens/seedly_login_screen.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
-Future<FakeSeedlyAuth> _openProfile(
+Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
   SeedlyAuthException? signOutError,
 }) async {
-  final auth = FakeSeedlyAuth(isSignedIn: true)..signOutError = signOutError;
+  final auth = FakeSeedlyAuthRepository(isSignedIn: true)
+    ..signOutError = signOutError;
   await tester.pumpWidget(
     MaterialApp(
       theme: SeedlyTheme.light,
@@ -33,7 +34,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyHomeScreen(auth: FakeSeedlyAuth(isSignedIn: true)),
+        home: SeedlyHomeScreen(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
+        ),
       ),
     );
     expect(find.text('Cerrar sesión'), findsNothing);

@@ -19,9 +19,9 @@ import 'package:seedly/widgets/seedly_task_field.dart';
 
 import 'package:seedly/services/seedly_image_picker.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_image_picker.dart';
-import 'support/fake_seedly_projects.dart';
+import 'support/fake_seedly_project_repository.dart';
 
 /// Monday 12 October 2026.
 final _today = DateTime(2026, 10, 12);
@@ -34,18 +34,18 @@ void _usePhone(WidgetTester tester) {
 }
 
 /// Opens the form from the + button and the add modal, like a person would.
-Future<FakeSeedlyProjects> _openFromHome(
+Future<FakeSeedlyProjectRepository> _openFromHome(
   WidgetTester tester,
   String option, {
-  FakeSeedlyProjects? projects,
+  FakeSeedlyProjectRepository? projects,
 }) async {
   _usePhone(tester);
-  final fake = projects ?? FakeSeedlyProjects();
+  final fake = projects ?? FakeSeedlyProjectRepository();
   await tester.pumpWidget(
     MaterialApp(
       theme: SeedlyTheme.light,
       home: SeedlyHomeScreen(
-        auth: FakeSeedlyAuth(isSignedIn: true),
+        auth: FakeSeedlyAuthRepository(isSignedIn: true),
         projects: fake,
       ),
     ),
@@ -58,13 +58,13 @@ Future<FakeSeedlyProjects> _openFromHome(
 }
 
 /// The form alone, with today pinned for the date flows.
-Future<(FakeSeedlyProjects, List<NewSeedlyProject>)> _openView(
+Future<(FakeSeedlyProjectRepository, List<NewSeedlyProject>)> _openView(
   WidgetTester tester, {
   SeedlyProjectKind kind = SeedlyProjectKind.full,
   FakeSeedlyImagePicker? picker,
 }) async {
   _usePhone(tester);
-  final projects = FakeSeedlyProjects();
+  final projects = FakeSeedlyProjectRepository();
   final created = <NewSeedlyProject>[];
   await tester.pumpWidget(
     MaterialApp(
@@ -775,7 +775,9 @@ void main() {
       await _openFromHome(
         tester,
         'Proyecto Express',
-        projects: FakeSeedlyProjects(save: SeedlyProjectSave.pendingSync),
+        projects: FakeSeedlyProjectRepository(
+          save: SeedlyProjectSave.pendingSync,
+        ),
       );
       await tester.enterText(find.byType(SeedlyInput).first, 'Huerto');
       await tester.enterText(find.byType(SeedlyTaskField).first, 'Sembrar');
@@ -792,7 +794,7 @@ void main() {
       await _openFromHome(
         tester,
         'Proyecto Express',
-        projects: FakeSeedlyProjects(
+        projects: FakeSeedlyProjectRepository(
           error: const SeedlyProjectException(SeedlyProjectError.saveFailed),
         ),
       );

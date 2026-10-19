@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/firebase/firestore_seedly_project_repository.dart';
 import '../modals/seedly_add_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
-import '../services/seedly_auth.dart';
-import '../services/seedly_projects.dart';
+import '../repositories/seedly_auth_repository.dart';
+import '../repositories/seedly_project_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
@@ -18,10 +19,10 @@ import 'seedly_login_screen.dart';
 class SeedlyHomeScreen extends StatefulWidget {
   const SeedlyHomeScreen({super.key, required this.auth, this.projects});
 
-  final SeedlyAuth auth;
+  final SeedlyAuthRepository auth;
 
   /// Defaults to Firestore; tests pass a fake.
-  final SeedlyProjects? projects;
+  final SeedlyProjectRepository? projects;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -34,8 +35,8 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// The project form being filled in, if any.
   SeedlyProjectKind? _creating;
 
-  late final SeedlyProjects _projects =
-      widget.projects ?? FirebaseSeedlyProjects();
+  late final SeedlyProjectRepository _projects =
+      widget.projects ?? FirestoreSeedlyProjectRepository(auth: widget.auth);
 
   Future<void> _signOut() async {
     if (_signingOut) return;

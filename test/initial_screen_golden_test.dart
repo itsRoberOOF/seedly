@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/main.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
 void main() {
   testWidgets('Initial screen at phone size', (tester) async {
@@ -23,7 +23,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(MyApp(auth: FakeSeedlyAuth()));
+    await tester.pumpWidget(MyApp(auth: FakeSeedlyAuthRepository()));
     await tester.pump();
 
     await expectLater(

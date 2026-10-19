@@ -1,21 +1,29 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'data/firebase/firebase_seedly_auth_repository.dart';
+import 'data/firebase/firestore_seedly_user_repository.dart';
 import 'firebase_options.dart';
+import 'repositories/seedly_auth_repository.dart';
 import 'screens/seedly_loading_screen.dart';
-import 'services/seedly_auth.dart';
 import 'theme/seedly_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(MyApp(auth: FirebaseSeedlyAuth()));
+  runApp(
+    MyApp(
+      auth: FirebaseSeedlyAuthRepository(
+        users: FirestoreSeedlyUserRepository(),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key, required this.auth});
 
-  final SeedlyAuth auth;
+  final SeedlyAuthRepository auth;
 
   @override
   Widget build(BuildContext context) {

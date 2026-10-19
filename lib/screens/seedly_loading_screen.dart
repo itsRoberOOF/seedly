@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/seedly_auth.dart';
+import '../repositories/seedly_auth_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_botanical_background.dart';
 import '../widgets/seedly_loader.dart';
@@ -11,7 +11,7 @@ import 'seedly_login_screen.dart';
 class SeedlyLoadingScreen extends StatelessWidget {
   const SeedlyLoadingScreen({super.key, required this.auth, this.startAfter});
 
-  final SeedlyAuth auth;
+  final SeedlyAuthRepository auth;
   final Future<void>? startAfter;
 
   @override

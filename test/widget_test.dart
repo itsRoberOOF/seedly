@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/main.dart';
 import 'package:seedly/widgets/seedly_loader.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
 void main() {
   testWidgets('Seedly opens on its loading screen', (tester) async {
-    await tester.pumpWidget(MyApp(auth: FakeSeedlyAuth()));
+    await tester.pumpWidget(MyApp(auth: FakeSeedlyAuthRepository()));
 
     expect(find.text('Seedly'), findsOneWidget);
     expect(find.text('Todo progreso empieza\ncon una semilla'), findsOneWidget);
@@ -20,7 +20,7 @@ void main() {
   ) async {
     tester.binding.deferFirstFrame();
     try {
-      await tester.pumpWidget(MyApp(auth: FakeSeedlyAuth()));
+      await tester.pumpWidget(MyApp(auth: FakeSeedlyAuthRepository()));
       await tester.pump(const Duration(milliseconds: 1500));
 
       final progress = tester

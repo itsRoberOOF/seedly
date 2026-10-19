@@ -7,9 +7,9 @@ import '../modals/seedly_date_modal.dart';
 import '../modals/seedly_icon_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
+import '../repositories/seedly_project_repository.dart';
 import '../services/seedly_image_picker.dart';
 import 'seedly_create_task_view.dart';
-import '../services/seedly_projects.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
@@ -36,13 +36,14 @@ class SeedlyCreateProjectView extends StatefulWidget {
     this.imagePicker,
   });
 
-  final SeedlyProjects projects;
+  final SeedlyProjectRepository projects;
 
   /// Defaults to the device gallery; tests pass a fake.
   final SeedlyImagePicker? imagePicker;
   final VoidCallback onClose;
 
-  /// Called with the saved project once [SeedlyProjects.create] succeeds.
+  /// Called with the saved project once [SeedlyProjectRepository.create]
+  /// succeeds.
   final void Function(NewSeedlyProject project, SeedlyProjectSave save)
   onCreated;
   final SeedlyProjectKind initialKind;

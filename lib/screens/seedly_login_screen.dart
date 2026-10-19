@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/seedly_errors.dart';
-import '../services/seedly_auth.dart';
+import '../repositories/seedly_auth_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
@@ -12,7 +12,7 @@ import 'seedly_home_screen.dart';
 class SeedlyLoginScreen extends StatefulWidget {
   const SeedlyLoginScreen({super.key, required this.auth});
 
-  final SeedlyAuth auth;
+  final SeedlyAuthRepository auth;
 
   @override
   State<SeedlyLoginScreen> createState() => _SeedlyLoginScreenState();

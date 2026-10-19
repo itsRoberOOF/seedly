@@ -6,7 +6,7 @@ import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_modal.dart';
 import 'package:seedly/widgets/seedly_option_card.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
 /// A screen whose button opens [open] and records what it completes with.
 Widget _launcher(
@@ -197,7 +197,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyHomeScreen(auth: FakeSeedlyAuth(isSignedIn: true)),
+        home: SeedlyHomeScreen(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
+        ),
       ),
     );
     await tester.tap(find.bySemanticsLabel('Agregar'));
@@ -214,7 +216,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyHomeScreen(auth: FakeSeedlyAuth(isSignedIn: true)),
+        home: SeedlyHomeScreen(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
+        ),
       ),
     );
     await tester.tap(find.bySemanticsLabel('Agregar'));

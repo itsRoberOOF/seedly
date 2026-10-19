@@ -2,23 +2,21 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/data/firebase/firestore_seedly_project_repository.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
-import 'package:seedly/services/seedly_projects.dart';
+
+import 'support/fake_seedly_auth_repository.dart';
 
 void main() {
   late FakeFirebaseFirestore firestore;
-  late FirebaseSeedlyProjects projects;
+  late FirestoreSeedlyProjectRepository projects;
 
   setUp(() {
     firestore = FakeFirebaseFirestore();
-    projects = FirebaseSeedlyProjects(
-      auth: MockFirebaseAuth(
-        signedIn: true,
-        mockUser: MockUser(uid: 'ana', email: 'ana@seedly.app'),
-      ),
+    projects = FirestoreSeedlyProjectRepository(
+      auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
       firestore: firestore,
     );
   });
@@ -109,8 +107,8 @@ void main() {
   });
 
   test('without a session it refuses to write', () async {
-    final signedOut = FirebaseSeedlyProjects(
-      auth: MockFirebaseAuth(),
+    final signedOut = FirestoreSeedlyProjectRepository(
+      auth: FakeSeedlyAuthRepository(),
       firestore: firestore,
     );
     await expectLater(

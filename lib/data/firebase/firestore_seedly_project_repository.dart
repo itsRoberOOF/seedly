@@ -1,28 +1,24 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import '../models/seedly_errors.dart';
-import '../models/seedly_project.dart';
-
-/// Project storage used by the screens, so tests can swap Firestore out.
-abstract interface class SeedlyProjects {
-  /// Throws [SeedlyProjectException].
-  Future<SeedlyProjectSave> create(NewSeedlyProject project);
-}
+import '../../models/seedly_errors.dart';
+import '../../models/seedly_project.dart';
+import '../../repositories/seedly_auth_repository.dart';
+import '../../repositories/seedly_project_repository.dart';
 
 /// Stores projects in the root `projects` collection and their tasks in the
 /// root `tasks` collection, so tasks from every project can be queried
 /// together (today's tasks, the calendar). Both carry `ownerId`, which every
 /// query must filter on; tasks also carry `projectId`. A project and its
 /// tasks are written together in one batch.
-class FirebaseSeedlyProjects implements SeedlyProjects {
-  FirebaseSeedlyProjects({FirebaseAuth? auth, FirebaseFirestore? firestore})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _firestore = firestore ?? FirebaseFirestore.instance;
+class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
+  FirestoreSeedlyProjectRepository({
+    required this._auth,
+    FirebaseFirestore? firestore,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  final FirebaseAuth _auth;
+  final SeedlyAuthRepository _auth;
   final FirebaseFirestore _firestore;
 
   /// How long to wait for the server before trusting the offline queue.
@@ -30,7 +26,7 @@ class FirebaseSeedlyProjects implements SeedlyProjects {
 
   @override
   Future<SeedlyProjectSave> create(NewSeedlyProject project) async {
-    final uid = _auth.currentUser?.uid;
+    final uid = _auth.currentUserId;
     if (uid == null) {
       throw const SeedlyProjectException(SeedlyProjectError.sessionExpired);
     }

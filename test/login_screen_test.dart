@@ -10,7 +10,7 @@ import 'package:seedly/widgets/seedly_alert.dart';
 import 'package:seedly/widgets/seedly_button.dart';
 import 'package:seedly/widgets/seedly_input.dart';
 
-import 'support/fake_seedly_auth.dart';
+import 'support/fake_seedly_auth_repository.dart';
 
 void main() {
   tearDown(hideSeedlyAlert);
@@ -28,7 +28,7 @@ void main() {
       MaterialApp(
         theme: SeedlyTheme.light,
         home: SeedlyLoadingScreen(
-          auth: FakeSeedlyAuth(),
+          auth: FakeSeedlyAuthRepository(),
           startAfter: Future<void>.value(),
         ),
       ),
@@ -48,7 +48,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
 
@@ -89,7 +89,7 @@ void main() {
   testWidgets('Google is full width and signs in through the auth service', (
     tester,
   ) async {
-    final auth = FakeSeedlyAuth();
+    final auth = FakeSeedlyAuthRepository();
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
@@ -122,7 +122,7 @@ void main() {
   testWidgets('closing the Google picker stays on login silently', (
     tester,
   ) async {
-    final auth = FakeSeedlyAuth(googleResult: false);
+    final auth = FakeSeedlyAuthRepository(googleResult: false);
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
@@ -138,7 +138,7 @@ void main() {
   });
 
   testWidgets('valid email credentials open the home', (tester) async {
-    final auth = FakeSeedlyAuth();
+    final auth = FakeSeedlyAuthRepository();
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
@@ -161,7 +161,7 @@ void main() {
   testWidgets('rejected credentials show the auth message and stay', (
     tester,
   ) async {
-    final auth = FakeSeedlyAuth(
+    final auth = FakeSeedlyAuthRepository(
       error: const SeedlyAuthException(SeedlyAuthError.invalidCredentials),
     );
     await tester.pumpWidget(
@@ -187,7 +187,7 @@ void main() {
   testWidgets('a new sign-in attempt clears the previous error alert', (
     tester,
   ) async {
-    final auth = FakeSeedlyAuth(
+    final auth = FakeSeedlyAuthRepository(
       error: const SeedlyAuthException(SeedlyAuthError.invalidCredentials),
     );
     await tester.pumpWidget(
@@ -217,7 +217,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     await tester.tap(find.text('Iniciar sesión'));
@@ -241,7 +241,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     await tester.enterText(find.byType(SeedlyInput).at(0), 'hola@seedly.com');
@@ -260,7 +260,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     InputDecorator decorator(int index) => tester.widget<InputDecorator>(
@@ -303,7 +303,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     final anchors = [
@@ -323,7 +323,7 @@ void main() {
   });
 
   testWidgets('invalid form never reaches the auth service', (tester) async {
-    final auth = FakeSeedlyAuth();
+    final auth = FakeSeedlyAuthRepository();
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
@@ -341,7 +341,7 @@ void main() {
       MaterialApp(
         theme: SeedlyTheme.light,
         home: SeedlyLoadingScreen(
-          auth: FakeSeedlyAuth(isSignedIn: true),
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
           startAfter: Future<void>.value(),
         ),
       ),
@@ -363,7 +363,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     await tester.ensureVisible(find.text('Regístrate'));
@@ -383,7 +383,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: SeedlyTheme.light,
-          home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+          home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
         ),
       );
       final scroll = tester.state<ScrollableState>(
@@ -406,7 +406,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
     final label = tester.getRect(find.text('Iniciar sesión'));
@@ -430,7 +430,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
 
@@ -470,7 +470,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
 
@@ -488,7 +488,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
-        home: SeedlyLoginScreen(auth: FakeSeedlyAuth()),
+        home: SeedlyLoginScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
 

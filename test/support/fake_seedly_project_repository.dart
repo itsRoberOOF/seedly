@@ -1,10 +1,13 @@
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
-import 'package:seedly/services/seedly_projects.dart';
+import 'package:seedly/repositories/seedly_project_repository.dart';
 
-/// In-memory [SeedlyProjects] so widget tests never reach Firestore.
-class FakeSeedlyProjects implements SeedlyProjects {
-  FakeSeedlyProjects({this.error, this.save = SeedlyProjectSave.saved});
+/// In-memory [SeedlyProjectRepository] so widget tests never reach Firestore.
+class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
+  FakeSeedlyProjectRepository({
+    this.error,
+    this.save = SeedlyProjectSave.saved,
+  });
 
   /// Thrown by [create] when set.
   SeedlyProjectException? error;

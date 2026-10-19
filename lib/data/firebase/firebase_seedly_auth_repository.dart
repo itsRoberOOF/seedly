@@ -1,41 +1,23 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../models/seedly_errors.dart';
+import '../../models/seedly_errors.dart';
+import '../../models/seedly_user_profile.dart';
+import '../../repositories/seedly_auth_repository.dart';
+import '../../repositories/seedly_user_repository.dart';
 
-/// Authentication used by Seedly's screens. Screens depend on this interface
-/// so tests can swap Firebase for a fake.
-abstract interface class SeedlyAuth {
-  bool get isSignedIn;
-
-  /// Throws [SeedlyAuthException].
-  Future<void> signInWithEmail({
-    required String email,
-    required String password,
-  });
-
-  /// Returns false when the person closes the Google picker.
-  /// Throws [SeedlyAuthException].
-  Future<bool> signInWithGoogle();
-
-  /// Throws [SeedlyAuthException].
-  Future<void> signOut();
-}
-
-class FirebaseSeedlyAuth implements SeedlyAuth {
-  FirebaseSeedlyAuth({
+class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
+  FirebaseSeedlyAuthRepository({
+    required this._users,
     FirebaseAuth? auth,
     GoogleSignIn? google,
-    FirebaseFirestore? firestore,
   }) : _auth = auth ?? FirebaseAuth.instance,
-       _google = google ?? GoogleSignIn.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance;
+       _google = google ?? GoogleSignIn.instance;
 
+  final SeedlyUserRepository _users;
   final FirebaseAuth _auth;
   final GoogleSignIn _google;
-  final FirebaseFirestore _firestore;
   Future<void>? _googleReady;
 
   /// Mirrors the account into `users/{uid}`; the password stays in Firebase
@@ -43,19 +25,17 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
   /// Firestore retries it once the connection returns.
   void _saveProfile(User? user) {
     if (user == null) return;
-    _firestore
-        .collection('users')
-        .doc(user.uid)
-        .set({
-          'email': user.email,
-          'displayName': user.displayName,
-          'photoUrl': user.photoURL,
-          'providers': [for (final info in user.providerData) info.providerId],
-          'createdAt': Timestamp.fromDate(
-            user.metadata.creationTime ?? DateTime.now(),
+    _users
+        .saveProfile(
+          SeedlyUserProfile(
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoUrl: user.photoURL,
+            providers: [for (final info in user.providerData) info.providerId],
+            createdAt: user.metadata.creationTime ?? DateTime.now(),
           ),
-          'lastSignInAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true))
+        )
         .catchError(
           (Object error) => debugPrint('Seedly profile not saved: $error'),
         );
@@ -63,6 +43,9 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
 
   @override
   bool get isSignedIn => _auth.currentUser != null;
+
+  @override
+  String? get currentUserId => _auth.currentUser?.uid;
 
   @override
   Future<void> signInWithEmail({
