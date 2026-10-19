@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../modals/seedly_date_modal.dart';
 import '../modals/seedly_time_modal.dart';
-import '../services/seedly_projects.dart';
+import '../models/seedly_project.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';

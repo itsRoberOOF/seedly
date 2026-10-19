@@ -3,32 +3,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../models/seedly_errors.dart';
+
 /// Authentication used by Seedly's screens. Screens depend on this interface
 /// so tests can swap Firebase for a fake.
 abstract interface class SeedlyAuth {
   bool get isSignedIn;
 
-  /// Throws [SeedlyAuthException] with a message ready to show.
+  /// Throws [SeedlyAuthException].
   Future<void> signInWithEmail({
     required String email,
     required String password,
   });
 
   /// Returns false when the person closes the Google picker.
-  /// Throws [SeedlyAuthException] with a message ready to show.
+  /// Throws [SeedlyAuthException].
   Future<bool> signInWithGoogle();
 
-  /// Throws [SeedlyAuthException] with a message ready to show.
+  /// Throws [SeedlyAuthException].
   Future<void> signOut();
-}
-
-class SeedlyAuthException implements Exception {
-  const SeedlyAuthException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }
 
 class FirebaseSeedlyAuth implements SeedlyAuth {
@@ -83,7 +76,7 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
       );
       _saveProfile(result.user);
     } on FirebaseAuthException catch (error) {
-      throw SeedlyAuthException(_firebaseMessage(error.code));
+      throw SeedlyAuthException(_signInError(error.code));
     }
   }
 
@@ -100,11 +93,9 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
       return true;
     } on GoogleSignInException catch (error) {
       if (error.code == GoogleSignInExceptionCode.canceled) return false;
-      throw const SeedlyAuthException(
-        'No se pudo iniciar sesión con Google. Inténtalo de nuevo.',
-      );
+      throw const SeedlyAuthException(SeedlyAuthError.googleFailed);
     } on FirebaseAuthException catch (error) {
-      throw SeedlyAuthException(_firebaseMessage(error.code));
+      throw SeedlyAuthException(_signInError(error.code));
     }
   }
 
@@ -113,7 +104,11 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
     try {
       await _auth.signOut();
     } on FirebaseAuthException catch (error) {
-      throw SeedlyAuthException(_firebaseMessage(error.code));
+      throw SeedlyAuthException(
+        error.code == 'network-request-failed'
+            ? SeedlyAuthError.network
+            : SeedlyAuthError.signOutFailed,
+      );
     }
     // Forget the Google account too so the next Google sign-in shows the
     // account picker. The Firebase session is already closed, so a failure
@@ -126,17 +121,17 @@ class FirebaseSeedlyAuth implements SeedlyAuth {
     }
   }
 
-  static String _firebaseMessage(String code) => switch (code) {
+  static SeedlyAuthError _signInError(String code) => switch (code) {
     'invalid-credential' ||
     'wrong-password' ||
-    'user-not-found' => 'Correo o contraseña incorrectos',
-    'invalid-email' => 'Ingresa un correo válido',
-    'user-disabled' => 'Esta cuenta está deshabilitada',
-    'too-many-requests' => 'Demasiados intentos. Espera un momento.',
-    'network-request-failed' => 'Sin conexión. Revisa tu internet.',
+    'user-not-found' => SeedlyAuthError.invalidCredentials,
+    'invalid-email' => SeedlyAuthError.invalidEmail,
+    'user-disabled' => SeedlyAuthError.userDisabled,
+    'too-many-requests' => SeedlyAuthError.tooManyRequests,
+    'network-request-failed' => SeedlyAuthError.network,
     'account-exists-with-different-credential' =>
-      'Este correo ya usa otro método de acceso',
-    'operation-not-allowed' => 'Este método de acceso no está habilitado',
-    _ => 'No se pudo iniciar sesión. Inténtalo de nuevo.',
+      SeedlyAuthError.accountExistsWithDifferentCredential,
+    'operation-not-allowed' => SeedlyAuthError.methodNotAllowed,
+    _ => SeedlyAuthError.signInFailed,
   };
 }

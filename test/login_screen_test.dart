@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/screens/seedly_loading_screen.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
-import 'package:seedly/services/seedly_auth.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
 import 'package:seedly/widgets/seedly_button.dart';
@@ -162,7 +162,7 @@ void main() {
     tester,
   ) async {
     final auth = FakeSeedlyAuth(
-      error: const SeedlyAuthException('Correo o contraseña incorrectos'),
+      error: const SeedlyAuthException(SeedlyAuthError.invalidCredentials),
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -188,7 +188,7 @@ void main() {
     tester,
   ) async {
     final auth = FakeSeedlyAuth(
-      error: const SeedlyAuthException('Correo o contraseña incorrectos'),
+      error: const SeedlyAuthException(SeedlyAuthError.invalidCredentials),
     );
     await tester.pumpWidget(
       MaterialApp(

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/models/seedly_errors.dart';
+import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/screens/seedly_create_project_view.dart';
 import 'package:seedly/screens/seedly_create_task_view.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
-import 'package:seedly/services/seedly_projects.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
 import 'package:seedly/widgets/seedly_avatar.dart';
@@ -792,7 +793,7 @@ void main() {
         tester,
         'Proyecto Express',
         projects: FakeSeedlyProjects(
-          error: const SeedlyProjectsException('Sin conexión.'),
+          error: const SeedlyProjectException(SeedlyProjectError.saveFailed),
         ),
       );
       await tester.enterText(find.byType(SeedlyInput).first, 'Huerto');
@@ -802,6 +803,10 @@ void main() {
       final alert = tester.widget<SeedlyAlert>(find.byType(SeedlyAlert));
       expect(alert.style, SeedlyAlertStyle.danger);
       expect(alert.title, 'No se pudo crear el proyecto');
+      expect(
+        alert.message,
+        'No se pudo guardar el proyecto. Inténtalo de nuevo.',
+      );
       expect(find.byType(SeedlyCreateProjectView), findsOneWidget);
       expect(find.text('Huerto'), findsOneWidget);
     });

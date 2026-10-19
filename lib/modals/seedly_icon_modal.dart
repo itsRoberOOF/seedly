@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../models/seedly_project.dart';
 import '../services/seedly_image_picker.dart';
-import '../services/seedly_projects.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_icon_tile.dart';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../models/seedly_errors.dart';
 import '../services/seedly_auth.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';

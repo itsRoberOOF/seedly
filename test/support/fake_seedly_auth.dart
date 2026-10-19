@@ -1,3 +1,4 @@
+import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/services/seedly_auth.dart';
 
 /// In-memory [SeedlyAuth] so widget tests never reach Firebase.

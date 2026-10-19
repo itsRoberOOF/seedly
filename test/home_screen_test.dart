@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
-import 'package:seedly/services/seedly_auth.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
 
@@ -68,14 +68,14 @@ void main() {
   ) async {
     final auth = await _openProfile(
       tester,
-      signOutError: const SeedlyAuthException('Sin conexión.'),
+      signOutError: const SeedlyAuthException(SeedlyAuthError.network),
     );
     await tester.tap(find.text('Cerrar sesión'));
     await tester.pumpAndSettle();
 
     final alert = tester.widget<SeedlyAlert>(find.byType(SeedlyAlert));
     expect(alert.title, 'No se pudo cerrar sesión');
-    expect(alert.message, 'Sin conexión.');
+    expect(alert.message, 'Sin conexión. Revisa tu internet.');
     expect(auth.isSignedIn, isTrue);
     expect(find.byType(SeedlyHomeScreen), findsOneWidget);
   });

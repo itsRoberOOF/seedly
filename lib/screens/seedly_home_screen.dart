@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../modals/seedly_add_modal.dart';
+import '../models/seedly_errors.dart';
+import '../models/seedly_project.dart';
 import '../services/seedly_auth.dart';
 import '../services/seedly_projects.dart';
 import '../theme/seedly_theme.dart';

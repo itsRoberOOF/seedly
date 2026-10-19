@@ -5,6 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../modals/seedly_date_modal.dart';
 import '../modals/seedly_icon_modal.dart';
+import '../models/seedly_errors.dart';
+import '../models/seedly_project.dart';
 import '../services/seedly_image_picker.dart';
 import 'seedly_create_task_view.dart';
 import '../services/seedly_projects.dart';
@@ -222,7 +224,7 @@ class _SeedlyCreateProjectViewState extends State<SeedlyCreateProjectView> {
     try {
       final save = await widget.projects.create(project);
       if (mounted) widget.onCreated(project, save);
-    } on SeedlyProjectsException catch (error) {
+    } on SeedlyProjectException catch (error) {
       if (!mounted) return;
       showSeedlyAlert(
         context,
