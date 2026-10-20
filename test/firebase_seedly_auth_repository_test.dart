@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/foundation.dart';
@@ -100,5 +102,29 @@ void main() {
 
     expect(repository.isSignedIn, isTrue);
     expect(logged, ['Seedly profile not saved: Exception: offline']);
+  });
+
+  test('a hanging profile save does not block the sign-in', () async {
+    users.pending = Completer<void>().future;
+
+    await signIn();
+
+    expect(repository.isSignedIn, isTrue);
+  });
+
+  test('a synchronously throwing save does not fail the sign-in', () async {
+    final logged = <String?>[];
+    final original = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logged.add(message);
+    addTearDown(() => debugPrint = original);
+    users
+      ..error = Exception('broken')
+      ..throwSynchronously = true;
+
+    await signIn();
+    await pumpEventQueue();
+
+    expect(repository.isSignedIn, isTrue);
+    expect(logged, ['Seedly profile not saved: Exception: broken']);
   });
 }

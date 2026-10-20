@@ -20,25 +20,21 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   final GoogleSignIn _google;
   Future<void>? _googleReady;
 
-  /// Mirrors the account into `users/{uid}`; the password stays in Firebase
-  /// Auth. Not awaited so a slow or offline write never blocks signing in,
-  /// Firestore retries it once the connection returns.
+  /// Mirrors the account through the user repository. Not awaited so a slow
+  /// or offline write never blocks signing in.
   void _saveProfile(User? user) {
     if (user == null) return;
-    _users
-        .saveProfile(
-          SeedlyUserProfile(
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoUrl: user.photoURL,
-            providers: [for (final info in user.providerData) info.providerId],
-            createdAt: user.metadata.creationTime ?? DateTime.now(),
-          ),
-        )
-        .catchError(
-          (Object error) => debugPrint('Seedly profile not saved: $error'),
-        );
+    final profile = SeedlyUserProfile(
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoUrl: user.photoURL,
+      providers: [for (final info in user.providerData) info.providerId],
+      createdAt: user.metadata.creationTime ?? DateTime.now(),
+    );
+    Future.sync(() => _users.saveProfile(profile)).catchError(
+      (Object error) => debugPrint('Seedly profile not saved: $error'),
+    );
   }
 
   @override

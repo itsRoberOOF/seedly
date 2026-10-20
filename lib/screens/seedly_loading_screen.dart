@@ -21,6 +21,7 @@ class SeedlyLoadingScreen extends StatelessWidget {
 
   /// Only handed on to the home and login screens.
   final SeedlyProjectRepository projects;
+
   final Future<void>? startAfter;
 
   @override

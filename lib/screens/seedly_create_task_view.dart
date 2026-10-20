@@ -15,8 +15,8 @@ import '../widgets/seedly_input_button.dart';
 import '../widgets/seedly_input_tags.dart';
 
 /// Figma "Crear- Tarea" in its Contraída and Extendida variants, for a task
-/// of the project being created. The project is fixed: it doesn't exist in
-/// Firestore yet. Editing an [initial] task keeps its done state.
+/// of the project being created. The project is fixed: it hasn't been saved
+/// yet. Editing an [initial] task keeps its done state.
 class SeedlyCreateTaskView extends StatefulWidget {
   const SeedlyCreateTaskView({
     super.key,

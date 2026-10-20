@@ -1,7 +1,7 @@
 # Repository layer — implementation plan
 
 **Spec (binding authority, Spanish):** Traycer artifact "Plan técnico: capa de repositorios para desacoplar Firebase"
-(`C:\Users\rocyr\.traycer\epics\fd13969f-19b2-4593-9d30-7628aaa8149b\artifacts\repository-layer-plan\index.md`).
+(Traycer epic `fd13969f-19b2-4593-9d30-7628aaa8149b`).
 
 **Goal:** screens, models and UI tests stop knowing about Firebase. Swapping the database (or the auth
 provider) means writing new implementations under `lib/data/` and changing `lib/main.dart` only.
