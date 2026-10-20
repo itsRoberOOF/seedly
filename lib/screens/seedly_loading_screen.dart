@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/seedly_auth_repository.dart';
+import '../repositories/seedly_project_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_botanical_background.dart';
 import '../widgets/seedly_loader.dart';
@@ -9,9 +10,17 @@ import 'seedly_home_screen.dart';
 import 'seedly_login_screen.dart';
 
 class SeedlyLoadingScreen extends StatelessWidget {
-  const SeedlyLoadingScreen({super.key, required this.auth, this.startAfter});
+  const SeedlyLoadingScreen({
+    super.key,
+    required this.auth,
+    required this.projects,
+    this.startAfter,
+  });
 
   final SeedlyAuthRepository auth;
+
+  /// Only handed on to the home and login screens.
+  final SeedlyProjectRepository projects;
   final Future<void>? startAfter;
 
   @override
@@ -50,8 +59,14 @@ class SeedlyLoadingScreen extends StatelessWidget {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute<void>(
                               builder: (_) => auth.isSignedIn
-                                  ? SeedlyHomeScreen(auth: auth)
-                                  : SeedlyLoginScreen(auth: auth),
+                                  ? SeedlyHomeScreen(
+                                      auth: auth,
+                                      projects: projects,
+                                    )
+                                  : SeedlyLoginScreen(
+                                      auth: auth,
+                                      projects: projects,
+                                    ),
                             ),
                           );
                         },

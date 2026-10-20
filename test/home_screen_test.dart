@@ -7,6 +7,7 @@ import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_project_repository.dart';
 
 Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
@@ -17,7 +18,10 @@ Future<FakeSeedlyAuthRepository> _openProfile(
   await tester.pumpWidget(
     MaterialApp(
       theme: SeedlyTheme.light,
-      home: SeedlyHomeScreen(auth: auth),
+      home: SeedlyHomeScreen(
+        auth: auth,
+        projects: FakeSeedlyProjectRepository(),
+      ),
     ),
   );
   await tester.tap(find.text('Mi perfil'));
@@ -36,6 +40,7 @@ void main() {
         theme: SeedlyTheme.light,
         home: SeedlyHomeScreen(
           auth: FakeSeedlyAuthRepository(isSignedIn: true),
+          projects: FakeSeedlyProjectRepository(),
         ),
       ),
     );

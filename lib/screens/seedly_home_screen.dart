@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/firebase/firestore_seedly_project_repository.dart';
 import '../modals/seedly_add_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
@@ -17,12 +16,14 @@ import 'seedly_login_screen.dart';
 /// still an empty page except Mi perfil, which only offers signing out. The
 /// add button's project forms open over the current tab, menu included.
 class SeedlyHomeScreen extends StatefulWidget {
-  const SeedlyHomeScreen({super.key, required this.auth, this.projects});
+  const SeedlyHomeScreen({
+    super.key,
+    required this.auth,
+    required this.projects,
+  });
 
   final SeedlyAuthRepository auth;
-
-  /// Defaults to Firestore; tests pass a fake.
-  final SeedlyProjectRepository? projects;
+  final SeedlyProjectRepository projects;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -35,9 +36,6 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// The project form being filled in, if any.
   SeedlyProjectKind? _creating;
 
-  late final SeedlyProjectRepository _projects =
-      widget.projects ?? FirestoreSeedlyProjectRepository(auth: widget.auth);
-
   Future<void> _signOut() async {
     if (_signingOut) return;
     setState(() => _signingOut = true);
@@ -46,7 +44,8 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
-          builder: (_) => SeedlyLoginScreen(auth: widget.auth),
+          builder: (_) =>
+              SeedlyLoginScreen(auth: widget.auth, projects: widget.projects),
         ),
         (_) => false,
       );
@@ -112,7 +111,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               // A new key per variant opened from the modal starts a fresh
               // form.
               key: ValueKey(creating),
-              projects: _projects,
+              projects: widget.projects,
               initialKind: creating,
               onClose: _closeForm,
               onCreated: _created,
