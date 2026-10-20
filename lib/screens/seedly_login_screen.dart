@@ -10,6 +10,7 @@ import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 import 'seedly_home_screen.dart';
+import 'seedly_password_reset_screen.dart';
 import 'seedly_sign_up_screen.dart';
 
 class SeedlyLoginScreen extends StatefulWidget {
@@ -43,12 +44,6 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
     _email.dispose();
     _password.dispose();
     super.dispose();
-  }
-
-  void _notice(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Runs [signIn] once at a time and opens the home when it reports success.
@@ -85,6 +80,28 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
         builder: (_) =>
             SeedlySignUpScreen(auth: widget.auth, projects: widget.projects),
       ),
+    );
+  }
+
+  Future<void> _openPasswordReset() async {
+    hideSeedlyAlert();
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SeedlyPasswordResetScreen(
+          auth: widget.auth,
+          initialEmail: _email.text.trim(),
+        ),
+      ),
+    );
+    if (sent != true || !mounted) return;
+    // Worded the same whether or not the email has an account.
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.success,
+      title: 'Revisa tu correo',
+      message:
+          'Si hay una cuenta con ese correo, te enviamos un enlace para '
+          'cambiar tu contraseña.',
     );
   }
 
@@ -178,9 +195,7 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
                                   label: '¿Olvidaste tu contraseña?',
                                   variant: SeedlyButtonVariant.text,
                                   size: SeedlyButtonSize.medium,
-                                  onPressed: () => _notice(
-                                    'Recuperación de contraseña aún no disponible',
-                                  ),
+                                  onPressed: _openPasswordReset,
                                 ),
                               ),
                               const SizedBox(height: 20),

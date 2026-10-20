@@ -108,6 +108,46 @@ void main() {
     });
   }
 
+  test('a password reset email is sent', () async {
+    await expectLater(
+      repository.sendPasswordReset('ana@seedly.app'),
+      completes,
+    );
+  });
+
+  test(
+    'an email without an account looks sent, to hide who signed up',
+    () async {
+      whenCalling(Invocation.method(#sendPasswordResetEmail, null))
+          .on(auth)
+          .thenThrow(FirebaseAuthException(code: 'user-not-found'));
+
+      await expectLater(
+        repository.sendPasswordReset('nadie@seedly.app'),
+        completes,
+      );
+    },
+  );
+
+  const resetErrors = {
+    'invalid-email': SeedlyAuthError.invalidEmail,
+    'too-many-requests': SeedlyAuthError.tooManyRequests,
+    'network-request-failed': SeedlyAuthError.network,
+    'something-new': SeedlyAuthError.resetFailed,
+  };
+  for (final entry in resetErrors.entries) {
+    test('password reset maps ${entry.key} to ${entry.value.name}', () async {
+      whenCalling(Invocation.method(#sendPasswordResetEmail, null))
+          .on(auth)
+          .thenThrow(FirebaseAuthException(code: entry.key));
+
+      await expectLater(
+        repository.sendPasswordReset('ana@seedly.app'),
+        _failsWith(entry.value),
+      );
+    });
+  }
+
   test('signOut without a connection maps to network', () async {
     whenCalling(Invocation.method(#signOut, null))
         .on(auth)

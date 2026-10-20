@@ -22,6 +22,7 @@ void main() {
       SeedlyAuthError.emailInUse: 'Este correo ya tiene una cuenta',
       SeedlyAuthError.weakPassword: 'Elige una contraseña más segura',
       SeedlyAuthError.signUpFailed: 'Inténtalo de nuevo en un momento.',
+      SeedlyAuthError.resetFailed: 'Inténtalo de nuevo en un momento.',
     };
 
     test('the table covers every reason', () {

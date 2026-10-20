@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -13,6 +14,8 @@ import 'theme/seedly_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Emails Firebase sends for us, like the password reset, go out in Spanish.
+  await FirebaseAuth.instance.setLanguageCode('es');
   final users = FirestoreSeedlyUserRepository();
   final auth = FirebaseSeedlyAuthRepository(users: users);
   final projects = FirestoreSeedlyProjectRepository(auth: auth);

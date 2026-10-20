@@ -21,6 +21,11 @@ abstract interface class SeedlyAuthRepository {
     required String password,
   });
 
+  /// Emails a link to choose a new password. Completes the same whether or
+  /// not [email] has an account, so nobody can probe who signed up.
+  /// Throws [SeedlyAuthException].
+  Future<void> sendPasswordReset(String email);
+
   /// Returns false when the person closes the Google picker.
   /// Throws [SeedlyAuthException].
   Future<bool> signInWithGoogle();

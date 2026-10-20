@@ -19,8 +19,16 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   @override
   String? get currentUserId => isSignedIn ? uid : null;
 
-  /// Thrown by the sign-in and sign-up methods when set.
+  /// Thrown by the sign-in, sign-up and password reset methods when set.
   SeedlyAuthException? error;
+
+  final resetRequests = <String>[];
+
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    resetRequests.add(email);
+    if (error != null) throw error!;
+  }
 
   /// What [signInWithGoogle] returns; false mimics closing the picker.
   final bool googleResult;

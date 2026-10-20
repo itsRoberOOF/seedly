@@ -86,6 +86,17 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   }
 
   @override
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (error) {
+      // Projects without email enumeration protection still report this.
+      if (error.code == 'user-not-found') return;
+      throw SeedlyAuthException(_resetError(error.code));
+    }
+  }
+
+  @override
   Future<bool> signInWithGoogle() async {
     try {
       await (_googleReady ??= _google.initialize());
@@ -148,5 +159,12 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
     'network-request-failed' => SeedlyAuthError.network,
     'operation-not-allowed' => SeedlyAuthError.methodNotAllowed,
     _ => SeedlyAuthError.signUpFailed,
+  };
+
+  static SeedlyAuthError _resetError(String code) => switch (code) {
+    'invalid-email' => SeedlyAuthError.invalidEmail,
+    'too-many-requests' => SeedlyAuthError.tooManyRequests,
+    'network-request-failed' => SeedlyAuthError.network,
+    _ => SeedlyAuthError.resetFailed,
   };
 }
