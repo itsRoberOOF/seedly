@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
+import 'package:seedly/widgets/seedly_header.dart';
 
 Widget _host(Widget child) => MaterialApp(
   theme: SeedlyTheme.light,
@@ -24,6 +25,40 @@ Widget _launcher({String message = 'Correo o contraseña incorrectos'}) =>
                 message: message,
               ),
               child: const Text('abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+/// Laid out like the create-project form: the header, when [showHeader] is
+/// on, sits at the top with a button below it that opens a floating alert.
+Widget _form({required ValueNotifier<bool> showHeader, VoidCallback? onBack}) =>
+    MaterialApp(
+      theme: SeedlyTheme.light,
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          child: ValueListenableBuilder(
+            valueListenable: showHeader,
+            builder: (context, show, _) => Column(
+              children: [
+                if (show)
+                  SeedlyHeader(
+                    title: 'Nuevo proyecto',
+                    onBack: onBack ?? () {},
+                  ),
+                const SizedBox(height: 200),
+                TextButton(
+                  onPressed: () => showSeedlyAlert(
+                    context,
+                    style: SeedlyAlertStyle.danger,
+                    title: 'Campos incompletos',
+                    message: 'Escribe un nombre',
+                  ),
+                  child: const Text('abrir'),
+                ),
+              ],
             ),
           ),
         ),
@@ -188,5 +223,78 @@ void main() {
     await tester.tap(find.text('abrir'));
     await tester.pumpAndSettle();
     expect(find.byType(SeedlyAlert), findsOneWidget);
+  });
+
+  group('header back arrow', () {
+    Rect alert(WidgetTester tester) => tester.getRect(find.byType(SeedlyAlert));
+    Rect arrow(WidgetTester tester) => tester.getRect(find.byTooltip('Volver'));
+
+    testWidgets('without a header the alert keeps its spot at the top', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_form(showHeader: ValueNotifier(false)));
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      expect(alert(tester).top, 12);
+    });
+
+    testWidgets('the alert opens below the arrow, which stays tappable', (
+      tester,
+    ) async {
+      var backs = 0;
+      await tester.pumpWidget(
+        _form(showHeader: ValueNotifier(true), onBack: () => backs++),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      expect(alert(tester).top, greaterThan(arrow(tester).bottom));
+
+      await tester.tap(find.byTooltip('Volver'));
+      expect(backs, 1);
+    });
+
+    testWidgets('a header that opens under a visible alert pushes it down', (
+      tester,
+    ) async {
+      final showHeader = ValueNotifier(false);
+      await tester.pumpWidget(_form(showHeader: showHeader));
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      expect(alert(tester).top, 12);
+
+      showHeader.value = true;
+      await tester.pumpAndSettle();
+      expect(alert(tester).top, greaterThan(arrow(tester).bottom));
+    });
+
+    testWidgets('a header on a screen underneath does not move the alert', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_form(showHeader: ValueNotifier(true)));
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                body: Builder(
+                  builder: (context) => Center(
+                    child: TextButton(
+                      onPressed: () => showSeedlyAlert(
+                        context,
+                        title: 'Recordatorio',
+                        message: 'Es un buen momento para continuar',
+                      ),
+                      child: const Text('encima'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('encima'));
+      await tester.pumpAndSettle();
+      expect(alert(tester).top, 12);
+    });
   });
 }

@@ -149,6 +149,25 @@ void main() {
     expect(find.byType(SeedlyAlert), findsNothing);
   });
 
+  testWidgets('an alert leaves the back arrow free to tap', (tester) async {
+    await openFromLogin(tester, FakeSeedlyAuthRepository(), loginEmail: 'ana@');
+    await send(tester);
+    // Sending scrolled down to the button; the arrow comes back on scroll.
+    await tester.ensureVisible(find.byTooltip('Volver'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SeedlyAlert), findsOneWidget);
+    expect(
+      tester.getRect(find.byType(SeedlyAlert)).top,
+      greaterThan(tester.getRect(find.byTooltip('Volver')).bottom),
+    );
+    await tester.tap(find.byTooltip('Volver'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+    expect(find.byType(SeedlyAlert), findsNothing);
+  });
+
   testWidgets('it can be scrolled on a compact phone', (tester) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;

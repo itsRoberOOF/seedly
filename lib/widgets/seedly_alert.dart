@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -220,8 +221,51 @@ class _ActionButton extends StatelessWidget {
 
 ({OverlayEntry entry, OverlayState overlay})? _visibleAlert;
 
+/// Everything the floating alert has to stay below.
+final _keepClear = <_SeedlyAlertKeepClearState>{};
+
+/// Keeps the floating alert below [child] while it is on the current screen,
+/// so the alert never covers it. [SeedlyHeader] wraps its back arrow in it.
+class SeedlyAlertKeepClear extends StatefulWidget {
+  const SeedlyAlertKeepClear({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<SeedlyAlertKeepClear> createState() => _SeedlyAlertKeepClearState();
+}
+
+class _SeedlyAlertKeepClearState extends State<SeedlyAlertKeepClear> {
+  @override
+  void initState() {
+    super.initState();
+    _keepClear.add(this);
+  }
+
+  @override
+  void dispose() {
+    _keepClear.remove(this);
+    super.dispose();
+  }
+
+  /// Where the child ends in [overlay]'s coordinates, or null while it isn't
+  /// laid out on the current screen.
+  double? bottomIn(RenderBox overlay) {
+    // A screen underneath stays mounted after another is pushed on top.
+    if (ModalRoute.isCurrentOf(context) == false) return null;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    final bottom = box.localToGlobal(box.size.bottomLeft(Offset.zero));
+    return overlay.globalToLocal(bottom).dy;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 /// Shows a [SeedlyAlert] floating at the top of the screen, replacing any
-/// alert already visible. It closes itself after [duration] or with its X.
+/// alert already visible. It closes itself after [duration] or with its X,
+/// and stays below anything wrapped in [SeedlyAlertKeepClear].
 void showSeedlyAlert(
   BuildContext context, {
   required String title,
@@ -288,10 +332,37 @@ class _FloatingAlertState extends State<_FloatingAlert>
   );
   Timer? _timer;
 
+  /// The lowest [SeedlyAlertKeepClear] edge on screen, in overlay
+  /// coordinates.
+  double? _clearLine;
+
   @override
   void initState() {
     super.initState();
     _timer = Timer(widget.duration, _close);
+    _watchClearLine();
+  }
+
+  /// A header can open, scroll or close while the alert is up, so it looks
+  /// again after every frame. Nothing runs while the screen doesn't redraw.
+  void _watchClearLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final line = _findClearLine();
+      if (line != _clearLine) setState(() => _clearLine = line);
+      _watchClearLine();
+    });
+  }
+
+  double? _findClearLine() {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (overlay is! RenderBox) return null;
+    double? line;
+    for (final keepClear in _keepClear) {
+      final bottom = keepClear.bottomIn(overlay);
+      if (bottom != null) line = math.max(line ?? bottom, bottom);
+    }
+    return line;
   }
 
   Future<void> _close() async {
@@ -311,14 +382,20 @@ class _FloatingAlertState extends State<_FloatingAlert>
 
   @override
   Widget build(BuildContext context) {
+    // 12px under the status bar, or 8px under what it must keep clear.
+    final top = math.max(
+      MediaQuery.paddingOf(context).top + 12,
+      (_clearLine ?? 0) + 8,
+    );
     return Positioned(
-      top: 0,
+      top: top,
       left: 0,
       right: 0,
       child: SafeArea(
+        top: false,
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),

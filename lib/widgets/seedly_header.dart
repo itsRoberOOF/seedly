@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/seedly_theme.dart';
+import 'seedly_alert.dart';
 
-/// Figma "Header": a back arrow and a centred title.
+/// Figma "Header": a back arrow and a centred title. Floating alerts open
+/// below the arrow so it can always be tapped.
 class SeedlyHeader extends StatelessWidget {
   const SeedlyHeader({super.key, required this.title, required this.onBack});
 
@@ -33,18 +35,20 @@ class SeedlyHeader extends StatelessWidget {
               maxWidth: 48,
               maxHeight: 48,
               alignment: Alignment.centerLeft,
-              child: IconButton(
-                tooltip: 'Volver',
-                onPressed: onBack,
-                padding: EdgeInsets.zero,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(48, 48),
-                  alignment: Alignment.centerLeft,
-                ),
-                icon: SvgPicture.asset(
-                  'assets/images/icon_arrow_left.svg',
-                  width: 32,
-                  height: 32,
+              child: SeedlyAlertKeepClear(
+                child: IconButton(
+                  tooltip: 'Volver',
+                  onPressed: onBack,
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    alignment: Alignment.centerLeft,
+                  ),
+                  icon: SvgPicture.asset(
+                    'assets/images/icon_arrow_left.svg',
+                    width: 32,
+                    height: 32,
+                  ),
                 ),
               ),
             ),
