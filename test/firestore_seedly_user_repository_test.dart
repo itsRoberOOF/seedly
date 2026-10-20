@@ -32,6 +32,19 @@ void main() {
     expect(data['providers'], ['password', 'google.com']);
     expect(data['createdAt'], Timestamp.fromDate(DateTime(2026, 10, 1, 9, 30)));
     expect(data['lastSignInAt'], isNotNull);
+    // validProfile() in firestore.rules rejects any other key, so the uid
+    // must stay the document id and never become a field.
+    expect(
+      data.keys,
+      unorderedEquals([
+        'email',
+        'displayName',
+        'photoUrl',
+        'providers',
+        'createdAt',
+        'lastSignInAt',
+      ]),
+    );
   });
 
   test('keeps the fields it does not write', () async {
