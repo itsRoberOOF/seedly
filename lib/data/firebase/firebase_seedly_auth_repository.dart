@@ -22,12 +22,12 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
 
   /// Mirrors the account through the user repository. Not awaited so a slow
   /// or offline write never blocks signing in.
-  void _saveProfile(User? user) {
+  void _saveProfile(User? user, {String? displayName}) {
     if (user == null) return;
     final profile = SeedlyUserProfile(
       uid: user.uid,
       email: user.email,
-      displayName: user.displayName,
+      displayName: displayName ?? user.displayName,
       photoUrl: user.photoURL,
       providers: [for (final info in user.providerData) info.providerId],
       createdAt: user.metadata.creationTime ?? DateTime.now(),
@@ -57,6 +57,32 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
     } on FirebaseAuthException catch (error) {
       throw SeedlyAuthException(_signInError(error.code));
     }
+  }
+
+  @override
+  Future<void> signUpWithEmail({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    final User? user;
+    try {
+      final result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      user = result.user;
+    } on FirebaseAuthException catch (error) {
+      throw SeedlyAuthException(_signUpError(error.code));
+    }
+    // The account already exists and is signed in, so a failed name update
+    // must not report the sign-up as failed; the profile still has the name.
+    try {
+      await user?.updateDisplayName(name);
+    } on FirebaseAuthException catch (error) {
+      debugPrint('Seedly display name not saved: $error');
+    }
+    _saveProfile(user, displayName: name);
   }
 
   @override
@@ -112,5 +138,15 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
       SeedlyAuthError.accountExistsWithDifferentCredential,
     'operation-not-allowed' => SeedlyAuthError.methodNotAllowed,
     _ => SeedlyAuthError.signInFailed,
+  };
+
+  static SeedlyAuthError _signUpError(String code) => switch (code) {
+    'email-already-in-use' => SeedlyAuthError.emailInUse,
+    'weak-password' => SeedlyAuthError.weakPassword,
+    'invalid-email' => SeedlyAuthError.invalidEmail,
+    'too-many-requests' => SeedlyAuthError.tooManyRequests,
+    'network-request-failed' => SeedlyAuthError.network,
+    'operation-not-allowed' => SeedlyAuthError.methodNotAllowed,
+    _ => SeedlyAuthError.signUpFailed,
   };
 }

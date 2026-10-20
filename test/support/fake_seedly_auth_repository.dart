@@ -19,13 +19,14 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   @override
   String? get currentUserId => isSignedIn ? uid : null;
 
-  /// Thrown by both sign-in methods when set.
+  /// Thrown by the sign-in and sign-up methods when set.
   SeedlyAuthException? error;
 
   /// What [signInWithGoogle] returns; false mimics closing the picker.
   final bool googleResult;
 
   final emailAttempts = <({String email, String password})>[];
+  final signUpAttempts = <({String name, String email, String password})>[];
   int googleAttempts = 0;
 
   @override
@@ -34,6 +35,17 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
     required String password,
   }) async {
     emailAttempts.add((email: email, password: password));
+    if (error != null) throw error!;
+    isSignedIn = true;
+  }
+
+  @override
+  Future<void> signUpWithEmail({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    signUpAttempts.add((name: name, email: email, password: password));
     if (error != null) throw error!;
     isSignedIn = true;
   }

@@ -5,10 +5,12 @@ import '../models/seedly_errors.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../theme/seedly_theme.dart';
+import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 import 'seedly_home_screen.dart';
+import 'seedly_sign_up_screen.dart';
 
 class SeedlyLoginScreen extends StatefulWidget {
   const SeedlyLoginScreen({
@@ -76,10 +78,14 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
     }
   }
 
-  static String? _emailError(String? value) {
-    final email = value?.trim() ?? '';
-    final valid = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
-    return valid ? null : 'Ingresa un correo válido';
+  void _openSignUp() {
+    hideSeedlyAlert();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SeedlySignUpScreen(auth: widget.auth, projects: widget.projects),
+      ),
+    );
   }
 
   static String? _passwordError(String? value) =>
@@ -95,7 +101,7 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
         style: SeedlyAlertStyle.danger,
         title: 'Campos incompletos',
         message: [
-          _emailError(_email.text),
+          seedlyEmailError(_email.text),
           _passwordError(_password.text),
         ].nonNulls.join('\n'),
       );
@@ -154,7 +160,7 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const [AutofillHints.email],
-                                validator: _emailError,
+                                validator: seedlyEmailError,
                               ),
                               const SizedBox(height: 24),
                               SeedlyInput(
@@ -247,8 +253,7 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
                               label: 'Regístrate',
                               variant: SeedlyButtonVariant.text,
                               size: SeedlyButtonSize.medium,
-                              onPressed: () =>
-                                  _notice('Registro aún no disponible'),
+                              onPressed: _openSignUp,
                             ),
                           ],
                         ),

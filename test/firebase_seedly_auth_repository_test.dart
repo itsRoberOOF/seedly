@@ -68,6 +68,46 @@ void main() {
     });
   }
 
+  Future<void> signUp() => repository.signUpWithEmail(
+    name: 'Ana',
+    email: 'nueva@seedly.app',
+    password: 'secreto123',
+  );
+
+  test('email sign-up creates the account under the given name', () async {
+    await signUp();
+
+    expect(repository.isSignedIn, isTrue);
+    expect(auth.currentUser!.email, 'nueva@seedly.app');
+    expect(auth.currentUser!.displayName, 'Ana');
+    final profile = users.saved.single;
+    expect(profile.uid, repository.currentUserId);
+    expect(profile.email, 'nueva@seedly.app');
+    expect(profile.displayName, 'Ana');
+    expect(profile.providers, ['password']);
+  });
+
+  const signUpErrors = {
+    'email-already-in-use': SeedlyAuthError.emailInUse,
+    'weak-password': SeedlyAuthError.weakPassword,
+    'invalid-email': SeedlyAuthError.invalidEmail,
+    'too-many-requests': SeedlyAuthError.tooManyRequests,
+    'network-request-failed': SeedlyAuthError.network,
+    'operation-not-allowed': SeedlyAuthError.methodNotAllowed,
+    'something-new': SeedlyAuthError.signUpFailed,
+  };
+  for (final entry in signUpErrors.entries) {
+    test('email sign-up maps ${entry.key} to ${entry.value.name}', () async {
+      whenCalling(Invocation.method(#createUserWithEmailAndPassword, null))
+          .on(auth)
+          .thenThrow(FirebaseAuthException(code: entry.key));
+
+      await expectLater(signUp(), _failsWith(entry.value));
+      expect(repository.isSignedIn, isFalse);
+      expect(users.saved, isEmpty);
+    });
+  }
+
   test('signOut without a connection maps to network', () async {
     whenCalling(Invocation.method(#signOut, null))
         .on(auth)

@@ -13,6 +13,14 @@ abstract interface class SeedlyAuthRepository {
     required String password,
   });
 
+  /// Creates the account, signs into it and gives it [name] as display name.
+  /// Throws [SeedlyAuthException].
+  Future<void> signUpWithEmail({
+    required String name,
+    required String email,
+    required String password,
+  });
+
   /// Returns false when the person closes the Google picker.
   /// Throws [SeedlyAuthException].
   Future<bool> signInWithGoogle();

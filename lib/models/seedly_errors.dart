@@ -1,5 +1,5 @@
-/// Why signing in or out failed. Each backend maps its own error codes to
-/// these, so the Spanish text is written once.
+/// Why signing up, in or out failed. Each backend maps its own error codes
+/// to these, so the Spanish text is written once.
 enum SeedlyAuthError {
   invalidCredentials,
   invalidEmail,
@@ -11,6 +11,9 @@ enum SeedlyAuthError {
   googleFailed,
   signInFailed,
   signOutFailed,
+  emailInUse,
+  weakPassword,
+  signUpFailed,
 }
 
 class SeedlyAuthException implements Exception {
@@ -36,6 +39,10 @@ class SeedlyAuthException implements Exception {
       'No se pudo iniciar sesión. Inténtalo de nuevo.',
     // The alert's title already says "No se pudo cerrar sesión".
     SeedlyAuthError.signOutFailed => 'Inténtalo de nuevo en un momento.',
+    SeedlyAuthError.emailInUse => 'Este correo ya tiene una cuenta',
+    SeedlyAuthError.weakPassword => 'Elige una contraseña más segura',
+    // The alert's title already says "No se pudo crear la cuenta".
+    SeedlyAuthError.signUpFailed => 'Inténtalo de nuevo en un momento.',
   };
 
   @override
