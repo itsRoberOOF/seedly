@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mock_exceptions/mock_exceptions.dart';
 import 'package:seedly/data/firebase/firestore_seedly_user_repository.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_user_profile.dart';
@@ -184,18 +185,49 @@ void main() {
       );
     });
 
-    test('fails with saveFailed when the document does not exist', () async {
-      await expectLater(
-        users.updateProfile('ana', bio: const SeedlyField('Hola')),
-        throwsA(
-          isA<SeedlyProfileException>().having(
-            (e) => e.reason,
-            'reason',
-            SeedlyProfileError.saveFailed,
+    test(
+      'fails with sessionExpired when the document does not exist',
+      () async {
+        await expectLater(
+          users.updateProfile('ana', bio: const SeedlyField('Hola')),
+          throwsA(
+            isA<SeedlyProfileException>().having(
+              (e) => e.reason,
+              'reason',
+              SeedlyProfileError.sessionExpired,
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
+
+    final codes = {
+      'permission-denied': SeedlyProfileError.sessionExpired,
+      'not-found': SeedlyProfileError.sessionExpired,
+      'unavailable': SeedlyProfileError.saveFailed,
+      'unknown': SeedlyProfileError.saveFailed,
+    };
+    for (final entry in codes.entries) {
+      test('maps the ${entry.key} error to ${entry.value.name}', () async {
+        await users.saveProfile(profile);
+        whenCalling(Invocation.method(#update, null))
+            .on(firestore.collection('users').doc('ana'))
+            .thenThrow(
+              FirebaseException(plugin: 'cloud_firestore', code: entry.key),
+            );
+
+        await expectLater(
+          users.updateProfile('ana', bio: const SeedlyField('Hola')),
+          throwsA(
+            isA<SeedlyProfileException>().having(
+              (e) => e.reason,
+              'reason',
+              entry.value,
+            ),
+          ),
+        );
+      });
+    }
   });
 
   test('signing in again keeps the username and bio', () async {
