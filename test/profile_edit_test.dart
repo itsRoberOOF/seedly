@@ -331,11 +331,23 @@ void main() {
       await _type(tester, _bioField, 'a' * 170);
       expect(_text(tester, _bioField), 'a' * 160);
 
+      await _type(tester, _bioField, '');
       await _type(tester, _bioField, '${'a' * 150}${'😀' * 10}');
       expect(_text(tester, _bioField), '${'a' * 150}${'😀' * 5}');
       await _blur(tester);
 
       expect(users.updates.single.bio!.value!.length, 160);
+    });
+
+    testWidgets('typing one more character at a full field is rejected', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      await _type(tester, _bioField, 'a' * 160);
+      await _type(tester, _bioField, '${'a' * 160}X');
+      expect(_text(tester, _bioField), 'a' * 160);
     });
 
     testWidgets('80 emojis are saved', (tester) async {
@@ -407,7 +419,7 @@ void main() {
       expect(log, ['signOut:1']);
     });
 
-    testWidgets('a failed save keeps the session and a retry signs out', (
+    testWidgets('a failed save warns first and the next tap signs out', (
       tester,
     ) async {
       final users = FakeSeedlyUserRepository()
@@ -420,18 +432,47 @@ void main() {
       await _type(tester, _bioField, 'Hola');
       await signOut(tester);
       await tester.pump();
-      expect(find.text('No se pudo actualizar el perfil'), findsOneWidget);
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(
+        find.textContaining('Toca Cerrar sesión otra vez'),
+        findsOneWidget,
+      );
       expect(signedOut, 0);
 
       users.updateError = null;
       await signOut(tester);
       await tester.pump();
-      expect(users.updates, hasLength(1));
-      expect(users.updates.single.bio!.value, 'Hola');
       expect(signedOut, 1);
     });
 
-    testWidgets('an invalid username alerts and does not sign out', (
+    for (final reason in SeedlyProfileError.values) {
+      testWidgets('a permanent $reason warns once, then signs out', (
+        tester,
+      ) async {
+        final error = SeedlyProfileException(reason);
+        final users = FakeSeedlyUserRepository()..updateError = error;
+        var signedOut = 0;
+        await _openView(tester, users, onSignOut: () => signedOut++);
+
+        await _type(tester, _bioField, 'Hola');
+        await signOut(tester);
+        await tester.pump();
+        expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+        expect(
+          find.textContaining('Toca Cerrar sesión otra vez'),
+          findsOneWidget,
+        );
+        expect(find.textContaining(error.message), findsOneWidget);
+        expect(signedOut, 0);
+
+        await signOut(tester);
+        await tester.pump();
+        expect(signedOut, 1);
+        expect(users.updates, isEmpty);
+      });
+    }
+
+    testWidgets('an invalid username warns first, the next tap signs out', (
       tester,
     ) async {
       final users = FakeSeedlyUserRepository();
@@ -442,9 +483,171 @@ void main() {
       await signOut(tester);
       await tester.pump();
 
-      expect(find.text('Usuario no válido'), findsOneWidget);
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(
+        find.textContaining('Toca Cerrar sesión otra vez'),
+        findsOneWidget,
+      );
       expect(users.updates, isEmpty);
       expect(signedOut, 0);
+
+      await signOut(tester);
+      await tester.pump();
+      expect(users.updates, isEmpty);
+      expect(signedOut, 1);
+    });
+
+    testWidgets('a successful save signs out at once with no alert left', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await tester.pump();
+
+      expect(users.updates, hasLength(1));
+      expect(signedOut, 1);
+      expect(find.byType(SeedlyAlert), findsNothing);
+    });
+
+    testWidgets('editing again after the warning starts over', (tester) async {
+      final users = FakeSeedlyUserRepository()
+        ..updateError = const SeedlyProfileException(
+          SeedlyProfileError.saveFailed,
+        );
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await tester.pump();
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      hideSeedlyAlert();
+      await tester.pump();
+
+      await _type(tester, _bioField, 'Hola otra vez');
+      await signOut(tester);
+      await tester.pump();
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(signedOut, 0);
+
+      await signOut(tester);
+      await tester.pump();
+      expect(signedOut, 1);
+    });
+
+    testWidgets('a save that works after a warning signs out and resets', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository()
+        ..updateError = const SeedlyProfileException(
+          SeedlyProfileError.saveFailed,
+        );
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await tester.pump();
+      expect(signedOut, 0);
+
+      users.updateError = null;
+      await signOut(tester);
+      await tester.pump();
+      expect(users.updates, hasLength(1));
+      expect(signedOut, 1);
+
+      // The warning mark was cleared: a new failure warns again.
+      users.updateError = const SeedlyProfileException(
+        SeedlyProfileError.saveFailed,
+      );
+      await _type(tester, _bioField, 'Otra');
+      await signOut(tester);
+      await tester.pump();
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(signedOut, 1);
+    });
+
+    testWidgets('a double tap with a slow save saves and signs out once', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      final gate = Completer<void>();
+      users.updateGate = gate.future;
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await signOut(tester);
+      expect(users.updates, hasLength(1));
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(users.updates, hasLength(1));
+      expect(signedOut, 1);
+    });
+
+    testWidgets('two quick taps on a failing save only warn', (tester) async {
+      final users = FakeSeedlyUserRepository()
+        ..updateError = const SeedlyProfileException(
+          SeedlyProfileError.saveFailed,
+        );
+      final gate = Completer<void>();
+      users.updateGate = gate.future;
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await signOut(tester);
+      expect(signedOut, 0);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(signedOut, 0);
+
+      await signOut(tester);
+      await tester.pump();
+      expect(signedOut, 1);
+    });
+
+    testWidgets('Home leaves no success alert over the login', (tester) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final users = FakeSeedlyUserRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: SeedlyTheme.light,
+          home: SeedlyHomeScreen(
+            auth: FakeSeedlyAuthRepository(isSignedIn: true),
+            projects: FakeSeedlyProjectRepository(),
+            users: users,
+          ),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SeedlyMenu),
+          matching: find.text('Mi perfil'),
+        ),
+      );
+      await tester.pump();
+      await _type(tester, _bioField, 'Hasta pronto');
+
+      await tester.tap(find.text('Cerrar sesión'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+      expect(find.byType(SeedlyAlert), findsNothing);
     });
 
     testWidgets('without pending changes it signs out and saves nothing', (
@@ -513,7 +716,10 @@ void main() {
 
     expect(find.text('No se pudo actualizar el perfil'), findsOneWidget);
     expect(
-      find.text('Tu sesión expiró. Vuelve a iniciar sesión.'),
+      find.text(
+        'No se pudo guardar tu perfil. Cierra sesión y vuelve a entrar; si '
+        'sigue fallando, inténtalo más tarde.',
+      ),
       findsOneWidget,
     );
   });
@@ -556,6 +762,22 @@ void main() {
       );
       expect(initialsLabel(tester), 'Iniciales de ana@seedly.app');
     });
+
+    for (final name in ['', '   ']) {
+      testWidgets('falls back to the email for "$name"', (tester) async {
+        await _openView(
+          tester,
+          FakeSeedlyUserRepository(),
+          profile: SeedlyUserProfile(
+            uid: 'ana',
+            email: 'ana@seedly.app',
+            displayName: name,
+            createdAt: DateTime(2026),
+          ),
+        );
+        expect(initialsLabel(tester), 'Iniciales de ana@seedly.app');
+      });
+    }
   });
 
   group('watching the profile', () {

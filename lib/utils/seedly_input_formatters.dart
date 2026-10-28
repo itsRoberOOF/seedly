@@ -16,6 +16,12 @@ class SeedlyUtf16LengthFormatter extends TextInputFormatter {
   ) {
     final text = newValue.text;
     if (text.length <= maxLength) return newValue;
+    // Typing at a full field rejects the key instead of dropping the end.
+    final typing =
+        oldValue.text.length >= maxLength &&
+        oldValue.selection.isCollapsed &&
+        text.length > oldValue.text.length;
+    if (typing) return oldValue;
     var end = maxLength;
     final splitsPair =
         end > 0 &&

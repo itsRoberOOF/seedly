@@ -55,7 +55,8 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
         })
       >[];
 
-  /// Holds [updateProfile] after it records the call, until it completes.
+  /// Holds [updateProfile] after it records the call, until it completes;
+  /// an [updateError] then throws once released.
   Future<void>? updateGate;
 
   /// How many times [watchProfile] was subscribed to.
@@ -111,9 +112,10 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
     SeedlyField<String>? bio,
     SeedlyField<Uint8List>? photo,
   }) async {
-    if (updateError != null) throw updateError!;
+    if (updateError != null && updateGate == null) throw updateError!;
     updates.add((username: username, bio: bio, photo: photo));
     await updateGate;
+    if (updateError != null) throw updateError!;
     return updateResult;
   }
 }

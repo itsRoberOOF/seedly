@@ -40,6 +40,25 @@ void main() {
     }
   });
 
+  group('SeedlyProfileException', () {
+    const texts = {
+      SeedlyProfileError.sessionExpired:
+          'No se pudo guardar tu perfil. Cierra sesión y vuelve a entrar; si '
+          'sigue fallando, inténtalo más tarde.',
+      SeedlyProfileError.saveFailed: 'Inténtalo de nuevo en un momento.',
+    };
+
+    test('the table covers every reason', () {
+      expect(texts.keys, unorderedEquals(SeedlyProfileError.values));
+    });
+
+    for (final MapEntry(key: reason, value: text) in texts.entries) {
+      test('$reason says its own text', () {
+        expect(SeedlyProfileException(reason).message, text);
+      });
+    }
+  });
+
   group('SeedlyProjectException', () {
     const texts = {
       SeedlyProjectError.sessionExpired:

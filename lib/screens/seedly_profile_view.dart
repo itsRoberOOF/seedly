@@ -65,6 +65,16 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   /// Saves still waiting for the database, so signing out can wait for them.
   final _saving = <Future<bool>>{};
 
+  /// Signing out is in progress, so a second tap does nothing.
+  var _leaving = false;
+
+  /// A failed save already told the person that tapping Cerrar sesión again
+  /// leaves without saving. Cleared when they edit again or a save works.
+  var _leaveWarned = false;
+
+  /// Why the last save failed, for the alert shown when leaving.
+  var _lastSaveError = '';
+
   /// Pause before reading the profile again after the stream fails, doubling
   /// up to [_maxRetryDelay]; after [_maxReadRetries] failures in a row it
   /// stops until the tab is opened again.
@@ -75,6 +85,8 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   @override
   void initState() {
     super.initState();
+    _username.addListener(() => _leaveWarned = false);
+    _bio.addListener(() => _leaveWarned = false);
     _usernameFocus.addListener(() {
       if (!_usernameFocus.hasFocus) _save(username: true);
     });
@@ -171,11 +183,12 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       // Turns the border red; the message goes in an alert, as in the forms.
       setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
       _formKey.currentState?.validate();
+      _lastSaveError = usernameError ?? bioError!;
       showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
         title: usernameError != null ? 'Usuario no válido' : 'Bio no válida',
-        message: usernameError ?? bioError!,
+        message: _lastSaveError,
       );
       return false;
     }
@@ -200,6 +213,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
             : null,
         bio: changeBio ? SeedlyField(newBio.isEmpty ? null : newBio) : null,
       );
+      _leaveWarned = false;
       if (!silent && mounted) _showSaved(result);
       return true;
     } on SeedlyProfileException catch (error) {
@@ -210,18 +224,39 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
     }
   }
 
-  /// Signs out only once what is being typed has been saved: the tap on the
-  /// button doesn't take focus from the field, so nothing would save it, and
-  /// once signed out there is no account to save it to. A failed save keeps
-  /// the person here with its alert, so they can try again or fix it.
+  /// Saves what is being typed before signing out: the tap on the button
+  /// doesn't take focus from the field, so nothing else would save it, and
+  /// once signed out there is no account to save it to. Signing out is never
+  /// blocked for good: if a save fails, the first tap says why and that
+  /// tapping again leaves without saving, and the second tap signs out.
   Future<void> _signOut() async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    // Unfocusing starts the saves of the fields that were focused; this
-    // covers any other change, and then every save in flight is awaited.
-    final remaining = _save(username: true, bio: true);
-    final results = await Future.wait([..._saving, remaining]);
-    if (!mounted || results.contains(false)) return;
-    widget.onSignOut();
+    if (_leaving) return;
+    _leaving = true;
+    try {
+      FocusManager.instance.primaryFocus?.unfocus();
+      // Unfocusing starts the saves of the fields that were focused; this
+      // covers any other change, and then every save in flight is awaited.
+      final remaining = _save(username: true, bio: true);
+      final results = await Future.wait([..._saving, remaining]);
+      if (!mounted) return;
+      if (results.contains(false) && !_leaveWarned) {
+        _leaveWarned = true;
+        showSeedlyAlert(
+          context,
+          style: SeedlyAlertStyle.danger,
+          title: 'No se guardaron tus cambios',
+          message:
+              '$_lastSaveError\nToca Cerrar sesión otra vez para salir sin '
+              'guardar.',
+        );
+        return;
+      }
+      // Don't leave "Perfil actualizado" floating over the login.
+      hideSeedlyAlert();
+      widget.onSignOut();
+    } finally {
+      _leaving = false;
+    }
   }
 
   Future<void> _editPhoto() async {
@@ -268,12 +303,19 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   }
 
   void _showFailed(SeedlyProfileException error) {
+    _lastSaveError = error.message;
     showSeedlyAlert(
       context,
       style: SeedlyAlertStyle.danger,
       title: 'No se pudo actualizar el perfil',
       message: error.message,
     );
+  }
+
+  /// What to call the account in labels: its name, else its email.
+  String get _accountName {
+    final name = widget.profile?.displayName?.trim() ?? '';
+    return name.isNotEmpty ? name : widget.profile?.email ?? 'tu cuenta';
   }
 
   @override
@@ -323,9 +365,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
                     profile?.displayName,
                     profile?.email,
                   ),
-                  initialsLabel:
-                      'Iniciales de '
-                      '${profile?.displayName ?? profile?.email ?? 'tu cuenta'}',
+                  initialsLabel: 'Iniciales de $_accountName',
                   photo: _photo,
                   photoLabel: 'Tu foto de perfil',
                   size: 140,
