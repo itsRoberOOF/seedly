@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mock_exceptions/mock_exceptions.dart';
 import 'package:seedly/data/firebase/firebase_seedly_auth_repository.dart';
 import 'package:seedly/models/seedly_errors.dart';
@@ -13,6 +14,68 @@ import 'support/fake_seedly_user_repository.dart';
 Matcher _failsWith(SeedlyAuthError reason) => throwsA(
   isA<SeedlyAuthException>().having((error) => error.reason, 'reason', reason),
 );
+
+/// A [MockUser] whose Auth profile update can be made to fail, with no name
+/// until one is stored (unlike the account MockFirebaseAuth creates itself).
+// ignore: must_be_immutable
+class _FlakyUser extends MockUser {
+  _FlakyUser({required super.uid, this.failsUpdate = true})
+    : super(email: '$uid@seedly.app');
+
+  final bool failsUpdate;
+
+  @override
+  Future<void> updateDisplayName(String? value) {
+    if (failsUpdate) {
+      throw FirebaseAuthException(code: 'network-request-failed');
+    }
+    return super.updateDisplayName(value);
+  }
+}
+
+class _Credential extends Fake implements UserCredential {
+  _Credential(this.user);
+
+  @override
+  final User? user;
+}
+
+/// Signs up and in as whichever [User] is queued in [next].
+class _ScriptedAuth extends Fake implements FirebaseAuth {
+  User? next;
+  User? _current;
+
+  @override
+  User? get currentUser => _current;
+
+  @override
+  Future<UserCredential> createUserWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async => _Credential(_current = next);
+
+  @override
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async => _Credential(_current = next);
+
+  @override
+  Future<void> signOut() async => _current = null;
+}
+
+class _FakeGoogle extends Fake implements GoogleSignIn {
+  @override
+  Future<void> initialize({
+    String? clientId,
+    String? serverClientId,
+    String? nonce,
+    String? hostedDomain,
+  }) async {}
+
+  @override
+  Future<void> signOut() async {}
+}
 
 void main() {
   late FakeSeedlyUserRepository users;
@@ -229,5 +292,88 @@ void main() {
     expect(user!.uid, 'ana');
     expect(user.email, 'ana@seedly.app');
     expect(user.displayName, 'Ana');
+  });
+
+  group('the sign-up name when Auth cannot store it', () {
+    late _ScriptedAuth scripted;
+
+    setUp(() {
+      scripted = _ScriptedAuth();
+      repository = FirebaseSeedlyAuthRepository(
+        users: users,
+        auth: scripted,
+        google: _FakeGoogle(),
+      );
+    });
+
+    Future<void> signUpAs(User user, {String name = 'Ana'}) {
+      scripted.next = user;
+      return repository.signUpWithEmail(
+        name: name,
+        email: 'nueva@seedly.app',
+        password: 'secreto123',
+      );
+    }
+
+    test('currentUser falls back to the name typed at sign-up', () async {
+      final logged = <String?>[];
+      final original = debugPrint;
+      debugPrint = (message, {wrapWidth}) => logged.add(message);
+      addTearDown(() => debugPrint = original);
+
+      await signUpAs(_FlakyUser(uid: 'ana'));
+
+      expect(scripted.currentUser!.displayName, isNull);
+      expect(repository.currentUser?.displayName, 'Ana');
+      expect(logged, hasLength(1));
+      expect(logged.single, startsWith('Seedly display name not saved'));
+    });
+
+    test('the saved profile still carries the name', () async {
+      await signUpAs(_FlakyUser(uid: 'ana'));
+      await pumpEventQueue();
+
+      expect(users.saved.single.displayName, 'Ana');
+    });
+
+    test('a stored Auth name is read from Auth', () async {
+      await signUpAs(_FlakyUser(uid: 'ana', failsUpdate: false));
+
+      expect(scripted.currentUser!.displayName, 'Ana');
+      expect(repository.currentUser?.displayName, 'Ana');
+
+      // Proof it is not the fallback: Auth changes and currentUser follows.
+      await scripted.currentUser!.updateDisplayName('Ana María');
+      expect(repository.currentUser?.displayName, 'Ana María');
+    });
+
+    test('an Auth name wins over the fallback', () async {
+      final user = _FlakyUser(uid: 'ana');
+      await signUpAs(user);
+      expect(repository.currentUser?.displayName, 'Ana');
+
+      user.displayName = 'Otra';
+
+      expect(repository.currentUser?.displayName, 'Otra');
+    });
+
+    test('a different uid does not inherit the fallback', () async {
+      await signUpAs(_FlakyUser(uid: 'ana'));
+      await repository.signOut();
+      scripted.next = _FlakyUser(uid: 'beto');
+      await signIn();
+
+      expect(repository.currentUser?.uid, 'beto');
+      expect(repository.currentUser?.displayName, isNull);
+    });
+
+    test('signOut clears the fallback even for the same uid', () async {
+      await signUpAs(_FlakyUser(uid: 'ana'));
+      await repository.signOut();
+      scripted.next = _FlakyUser(uid: 'ana');
+      await signIn();
+
+      expect(repository.currentUser?.displayName, isNull);
+    });
   });
 }
