@@ -245,8 +245,17 @@ class _ShadowedOutlineBorder extends OutlineInputBorder {
   const _ShadowedOutlineBorder({super.borderSide, super.borderRadius})
     : super(gapPadding: 0);
 
-  /// Figma's Shadows/100, which it applies twice.
-  static const _shadows = SeedlyShadows.card;
+  /// Figma lists the input's Shadows/100 as radius 4, spread -2, but what it
+  /// renders (and its code export, a 2px drop-shadow filter) matches a 2px
+  /// blur with no spread, measured on "Perfil - Información". Only inputs use
+  /// it: the shared [SeedlyShadows.card] keeps the listed values. Figma applies
+  /// the effect twice, so it is stacked twice.
+  static const _inputShadow = BoxShadow(
+    color: SeedlyPalette.shadow,
+    offset: Offset(0, 2),
+    blurRadius: 2,
+  );
+  static const _shadows = [_inputShadow, _inputShadow];
 
   @override
   _ShadowedOutlineBorder copyWith({

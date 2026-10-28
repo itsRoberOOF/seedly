@@ -101,13 +101,11 @@ abstract final class SeedlyPalette {
 /// Figma's drop shadows. Figma applies each effect twice, so they are
 /// stacked twice here too.
 abstract final class SeedlyShadows {
-  // Figma lists Shadows/100 as radius 4, spread -2, but what it renders (and
-  // what its code export says, a 2px drop-shadow filter) matches a 2px blur
-  // with no spread: measured on the Input and Avatar of "Perfil - Información".
   static const _card = BoxShadow(
     color: SeedlyPalette.shadow,
     offset: Offset(0, 2),
-    blurRadius: 2,
+    blurRadius: 4,
+    spreadRadius: -2,
   );
   static const _tag = BoxShadow(
     color: SeedlyPalette.shadow,
