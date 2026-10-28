@@ -20,6 +20,10 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   final GoogleSignIn _google;
   Future<void>? _googleReady;
 
+  /// The name typed at sign-up when Auth could not store it. Until the next
+  /// sign-in [currentUser] shows it, like the profile saved in the database.
+  ({String uid, String name})? _signUpName;
+
   static SeedlyUserProfile _profileOf(User user, {String? displayName}) =>
       SeedlyUserProfile(
         uid: user.uid,
@@ -49,7 +53,14 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   @override
   SeedlyUserProfile? get currentUser {
     final user = _auth.currentUser;
-    return user == null ? null : _profileOf(user);
+    if (user == null) return null;
+    final fallback = _signUpName;
+    return _profileOf(
+      user,
+      displayName:
+          user.displayName ??
+          (fallback?.uid == user.uid ? fallback?.name : null),
+    );
   }
 
   @override
@@ -90,6 +101,7 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
       await user?.updateDisplayName(name);
     } on FirebaseAuthException catch (error) {
       debugPrint('Seedly display name not saved: $error');
+      if (user != null) _signUpName = (uid: user.uid, name: name);
     }
     _saveProfile(user, displayName: name);
   }
@@ -158,6 +170,7 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
             : SeedlyAuthError.signOutFailed,
       );
     }
+    _signUpName = null;
     // Forget the Google account too so the next Google sign-in shows the
     // account picker. The Firebase session is already closed, so a failure
     // here must not undo the sign-out.
