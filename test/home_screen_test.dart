@@ -13,6 +13,11 @@ Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
   SeedlyAuthException? signOutError,
 }) async {
+  // A phone-sized view, so the whole profile is on screen.
+  tester.view.physicalSize = const Size(440, 956);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   final auth = FakeSeedlyAuthRepository(isSignedIn: true)
     ..signOutError = signOutError;
   await tester.pumpWidget(
@@ -32,9 +37,7 @@ Future<FakeSeedlyAuthRepository> _openProfile(
 void main() {
   tearDown(hideSeedlyAlert);
 
-  testWidgets('only Mi perfil shows the sign-out button, centred', (
-    tester,
-  ) async {
+  testWidgets('only Mi perfil shows the sign-out button', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: SeedlyTheme.light,
@@ -52,12 +55,7 @@ void main() {
 
     await tester.tap(find.text('Mi perfil'));
     await tester.pump();
-    final button = tester.getCenter(find.text('Cerrar sesión'));
-    final body = tester.getRect(
-      find.byWidgetPredicate((widget) => widget is Center),
-    );
-    expect(button.dx, closeTo(body.center.dx, 1));
-    expect(button.dy, closeTo(body.center.dy, 1));
+    expect(find.text('Cerrar sesión'), findsOneWidget);
   });
 
   testWidgets('signing out returns to the login screen', (tester) async {

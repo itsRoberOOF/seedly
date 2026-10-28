@@ -1,4 +1,5 @@
 import '../models/seedly_errors.dart';
+import '../models/seedly_user_profile.dart';
 
 /// Authentication used by Seedly's screens; they never see the provider.
 abstract interface class SeedlyAuthRepository {
@@ -6,6 +7,9 @@ abstract interface class SeedlyAuthRepository {
 
   /// Null when signed out.
   String? get currentUserId;
+
+  /// The signed-in account's details, null when signed out.
+  SeedlyUserProfile? get currentUser;
 
   /// Throws [SeedlyAuthException].
   Future<void> signInWithEmail({

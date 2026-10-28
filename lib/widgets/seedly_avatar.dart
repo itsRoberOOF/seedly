@@ -6,9 +6,16 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/seedly_theme.dart';
 
 /// Figma "Avatar" (Size=XXXXL, Type=Icon): a 120px round icon with an
-/// optional edit button on its lower right.
+/// optional edit button on its lower right. The profile's is 140px.
 class SeedlyAvatar extends StatelessWidget {
-  const SeedlyAvatar({super.key, required this.icon, this.photo, this.onEdit});
+  const SeedlyAvatar({
+    super.key,
+    required this.icon,
+    this.photo,
+    this.onEdit,
+    this.size = 120,
+    this.editInset = 0,
+  });
 
   /// SVG asset drawn in the avatar's centre.
   final String icon;
@@ -19,11 +26,17 @@ class SeedlyAvatar extends StatelessWidget {
   /// Shows the edit button when set.
   final VoidCallback? onEdit;
 
+  /// Diameter of the circle.
+  final double size;
+
+  /// How far the edit button sits in from the circle's lower right.
+  final double editInset;
+
   @override
   Widget build(BuildContext context) {
     final avatar = Container(
-      width: 120,
-      height: 120,
+      width: size,
+      height: size,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: SeedlyPalette.neutral[50],
@@ -49,8 +62,8 @@ class SeedlyAvatar extends StatelessWidget {
             : Center(
                 child: SvgPicture.asset(
                   icon,
-                  width: 64,
-                  height: 64,
+                  width: size * 64 / 120,
+                  height: size * 64 / 120,
                   colorFilter: ColorFilter.mode(
                     SeedlyPalette.primary[600]!,
                     BlendMode.srcIn,
@@ -61,15 +74,15 @@ class SeedlyAvatar extends StatelessWidget {
     );
     if (onEdit == null) return avatar;
     return SizedBox(
-      width: 120,
-      height: 120,
+      width: size,
+      height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           avatar,
           Positioned(
-            right: 0,
-            bottom: 0,
+            right: editInset,
+            bottom: editInset,
             child: _EditButton(onPressed: onEdit!),
           ),
         ],

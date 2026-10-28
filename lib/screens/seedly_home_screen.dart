@@ -7,13 +7,13 @@ import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
-import '../widgets/seedly_button.dart';
 import '../widgets/seedly_menu.dart';
 import 'seedly_create_project_view.dart';
 import 'seedly_login_screen.dart';
+import 'seedly_profile_view.dart';
 
 /// Signed-in shell: the bottom menu switches the active tab. Every tab is
-/// still an empty page except Mi perfil, which only offers signing out. The
+/// still an empty page except Mi perfil, which shows the account. The
 /// add button's project forms open over the current tab, menu included.
 class SeedlyHomeScreen extends StatefulWidget {
   const SeedlyHomeScreen({
@@ -79,6 +79,14 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     }
   }
 
+  void _editPhoto() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Cambiar la foto aún no está disponible')),
+      );
+  }
+
   void _closeForm() {
     hideSeedlyAlert();
     setState(() => _creating = null);
@@ -117,8 +125,10 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               onCreated: _created,
             )
           : _active == SeedlyMenuTab.perfil
-          ? Center(
-              child: SeedlyButton(label: 'Cerrar sesión', onPressed: _signOut),
+          ? SeedlyProfileView(
+              profile: widget.auth.currentUser,
+              onSignOut: _signOut,
+              onEditPhoto: _editPhoto,
             )
           : null,
       bottomNavigationBar: SeedlyMenu(
