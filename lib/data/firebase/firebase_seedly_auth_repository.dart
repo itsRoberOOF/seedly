@@ -20,18 +20,21 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   final GoogleSignIn _google;
   Future<void>? _googleReady;
 
+  static SeedlyUserProfile _profileOf(User user, {String? displayName}) =>
+      SeedlyUserProfile(
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName ?? user.displayName,
+        photoUrl: user.photoURL,
+        providers: [for (final info in user.providerData) info.providerId],
+        createdAt: user.metadata.creationTime ?? DateTime.now(),
+      );
+
   /// Mirrors the account through the user repository. Not awaited so a slow
   /// or offline write never blocks signing in.
   void _saveProfile(User? user, {String? displayName}) {
     if (user == null) return;
-    final profile = SeedlyUserProfile(
-      uid: user.uid,
-      email: user.email,
-      displayName: displayName ?? user.displayName,
-      photoUrl: user.photoURL,
-      providers: [for (final info in user.providerData) info.providerId],
-      createdAt: user.metadata.creationTime ?? DateTime.now(),
-    );
+    final profile = _profileOf(user, displayName: displayName);
     Future.sync(() => _users.saveProfile(profile)).catchError(
       (Object error) => debugPrint('Seedly profile not saved: $error'),
     );
@@ -42,6 +45,12 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
 
   @override
   String? get currentUserId => _auth.currentUser?.uid;
+
+  @override
+  SeedlyUserProfile? get currentUser {
+    final user = _auth.currentUser;
+    return user == null ? null : _profileOf(user);
+  }
 
   @override
   Future<void> signInWithEmail({

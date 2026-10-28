@@ -16,6 +16,7 @@ class SeedlyInput extends StatefulWidget {
     required this.label,
     required this.hint,
     this.controller,
+    this.initialValue,
     this.validator,
     this.keyboardType,
     this.textInputAction,
@@ -28,11 +29,18 @@ class SeedlyInput extends StatefulWidget {
     this.maxLines = 1,
     this.maxLength,
     this.textCapitalization = TextCapitalization.none,
+    this.readOnly = false,
+    this.prefixAsset,
+    this.suffixAsset,
+    this.fieldHeight,
   });
 
   final String label;
   final String hint;
   final TextEditingController? controller;
+
+  /// The starting text when there is no [controller].
+  final String? initialValue;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -49,6 +57,20 @@ class SeedlyInput extends StatefulWidget {
   /// Caps the text without showing a counter.
   final int? maxLength;
   final TextCapitalization textCapitalization;
+
+  /// Shows the value in the normal outline look without letting it be edited.
+  final bool readOnly;
+
+  /// SVG drawn inside the box before the text, such as the "@" of a handle.
+  final String? prefixAsset;
+
+  /// SVG drawn in the box's lower right corner, such as a textarea's expand
+  /// icon. Only for multi-line inputs given a [fieldHeight].
+  final String? suffixAsset;
+
+  /// Fixes the box height; the text then fills it from the top, like Figma's
+  /// Textarea.
+  final double? fieldHeight;
 
   @override
   State<SeedlyInput> createState() => _SeedlyInputState();
@@ -70,19 +92,30 @@ class _SeedlyInputState extends State<SeedlyInput> {
       borderRadius: BorderRadius.circular(SeedlyMetrics.radii['lg']!),
       borderSide: const BorderSide(color: SeedlyPalette.border),
     );
-    final field = TextFormField(
+    final fixedHeight = widget.fieldHeight != null;
+    final suffix = widget.suffixAsset;
+    final prefix = widget.prefixAsset;
+    Widget field = TextFormField(
       controller: widget.controller,
+      initialValue: widget.controller == null ? widget.initialValue : null,
       validator: widget.validator,
       // An empty error keeps the red border without taking any space
       // under the field.
       errorBuilder: (context, message) => const SizedBox.shrink(),
       enabled: widget.enabled,
+      readOnly: widget.readOnly,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
       autofillHints: widget.autofillHints,
       obscureText: widget.password && _obscured,
-      minLines: widget.minLines,
-      maxLines: widget.password ? 1 : widget.maxLines,
+      expands: fixedHeight,
+      textAlignVertical: fixedHeight ? TextAlignVertical.top : null,
+      minLines: fixedHeight ? null : widget.minLines,
+      maxLines: fixedHeight
+          ? null
+          : widget.password
+          ? 1
+          : widget.maxLines,
       maxLength: widget.maxLength,
       // No counter under the field, even with maxLength.
       buildCounter: _noCounter,
@@ -97,10 +130,20 @@ class _SeedlyInputState extends State<SeedlyInput> {
                   ? Colors.white
                   : SeedlyPalette.neutral[200]
             : SeedlyPalette.neutral[150],
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: widget.size == SeedlyInputSize.large ? 12 : 8,
+        contentPadding: EdgeInsets.fromLTRB(
+          12,
+          widget.size == SeedlyInputSize.large ? 12 : 8,
+          // Keeps the text clear of the icon in the corner.
+          suffix != null ? 12 + 20 + 12 : 12,
+          widget.size == SeedlyInputSize.large ? 12 : 8,
         ),
+        prefixIcon: prefix != null
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12, right: 12),
+                child: SvgPicture.asset(prefix, width: 24, height: 24),
+              )
+            : null,
+        prefixIconConstraints: const BoxConstraints(),
         isDense: true,
         border: border,
         enabledBorder: border,
@@ -137,6 +180,24 @@ class _SeedlyInputState extends State<SeedlyInput> {
             : null,
       ),
     );
+    if (fixedHeight) {
+      field = SizedBox(
+        height: widget.fieldHeight,
+        child: Stack(
+          children: [
+            Positioned.fill(child: field),
+            if (suffix != null)
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: IgnorePointer(
+                  child: SvgPicture.asset(suffix, width: 20, height: 20),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

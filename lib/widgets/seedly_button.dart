@@ -18,6 +18,7 @@ class SeedlyButton extends StatelessWidget {
     this.trailing,
     this.expand = false,
     this.foreground,
+    this.color,
   });
 
   final String label;
@@ -32,11 +33,14 @@ class SeedlyButton extends StatelessWidget {
   /// "Cancelar"; filled buttons stay white on green.
   final Color? foreground;
 
+  /// Replaces the green, such as the red outline of "Cerrar sesión".
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final filled = variant == SeedlyButtonVariant.filled;
     final textOnly = variant == SeedlyButtonVariant.text;
-    final color = SeedlyPalette.primary[500]!;
+    final color = this.color ?? SeedlyPalette.primary[500]!;
     final (height, fontSize) = switch (size) {
       SeedlyButtonSize.small => (32.0, 12.0),
       SeedlyButtonSize.medium => (44.0, 14.0),

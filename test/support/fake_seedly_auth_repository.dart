@@ -1,4 +1,5 @@
 import 'package:seedly/models/seedly_errors.dart';
+import 'package:seedly/models/seedly_user_profile.dart';
 import 'package:seedly/repositories/seedly_auth_repository.dart';
 
 /// In-memory [SeedlyAuthRepository] so widget tests never reach Firebase.
@@ -8,6 +9,8 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
     this.error,
     this.googleResult = true,
     this.uid = 'ana',
+    this.displayName = 'Ana',
+    this.email = 'ana@seedly.app',
   });
 
   @override
@@ -18,6 +21,20 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
 
   @override
   String? get currentUserId => isSignedIn ? uid : null;
+
+  /// The name and email [currentUser] reports while signed in.
+  final String? displayName;
+  final String? email;
+
+  @override
+  SeedlyUserProfile? get currentUser => isSignedIn
+      ? SeedlyUserProfile(
+          uid: uid,
+          email: email,
+          displayName: displayName,
+          createdAt: DateTime(2026),
+        )
+      : null;
 
   /// Thrown by the sign-in, sign-up and password reset methods when set.
   SeedlyAuthException? error;
