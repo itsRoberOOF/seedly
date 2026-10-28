@@ -30,6 +30,11 @@ class SeedlyPasswordResetScreen extends StatefulWidget {
 }
 
 class _SeedlyPasswordResetScreenState extends State<SeedlyPasswordResetScreen> {
+  /// Height of everything except the illustration (padding, header, texts,
+  /// field, button and their gaps), generously rounded up so the layout never
+  /// overflows; what is left over goes to the illustration.
+  static const _fixedHeight = 500.0;
+
   final _formKey = GlobalKey<FormState>();
   late final _email = TextEditingController(text: widget.initialEmail);
   bool _busy = false;
@@ -85,84 +90,98 @@ class _SeedlyPasswordResetScreenState extends State<SeedlyPasswordResetScreen> {
       child: Scaffold(
         backgroundColor: SeedlyPalette.neutral[100],
         body: SafeArea(
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SeedlyHeader(
-                  title: '',
-                  onBack: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(height: 40),
-                Center(
-                  // Shrinks with the screen on phones narrower than Figma's.
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: SizedBox.square(
-                      dimension: 300,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SvgPicture.asset(
-                            'assets/images/recover_blob.svg',
-                            width: 300,
-                            height: 300,
+          // The illustration takes the height the rest of the screen leaves
+          // free, so it fits without scrolling. With the keyboard up it
+          // shrinks away and, if the form still doesn't fit, the screen
+          // scrolls instead of overflowing.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final illustration = (constraints.maxHeight - _fixedHeight).clamp(
+                0.0,
+                300.0,
+              );
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(32, 16, 32, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SeedlyHeader(
+                      title: '',
+                      onBack: () => Navigator.of(context).pop(),
+                    ),
+                    SizedBox(
+                      height: illustration,
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: SizedBox.square(
+                            dimension: 300,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/images/recover_blob.svg',
+                                  width: 300,
+                                  height: 300,
+                                ),
+                                SvgPicture.asset(
+                                  'assets/images/recover_lock.svg',
+                                  width: 150,
+                                  height: 180,
+                                ),
+                              ],
+                            ),
                           ),
-                          SvgPicture.asset(
-                            'assets/images/recover_lock.svg',
-                            width: 150,
-                            height: 180,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '¿Olvidaste tu contraseña?',
+                      textAlign: TextAlign.center,
+                      style: textTheme.displayMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Ingresa tu correo electrónico y te enviaremos un '
+                      'enlace para recuperar tu contraseña.',
+                      textAlign: TextAlign.center,
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: SeedlyPalette.neutral[700],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Form(
+                      key: _formKey,
+                      autovalidateMode: _autovalidate,
+                      child: SeedlyInput(
+                        label: 'Correo electrónico *',
+                        hint: 'ejemplo@correo.com',
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.email],
+                        validator: seedlyEmailError,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SeedlyButton(
+                      label: 'Enviar enlace',
+                      expand: true,
+                      trailing: SvgPicture.asset(
+                        'assets/images/recover_send.svg',
+                        width: 24,
+                        height: 24,
+                      ),
+                      onPressed: _send,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  '¿Olvidaste tu contraseña?',
-                  textAlign: TextAlign.center,
-                  style: textTheme.displayMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Ingresa tu correo electrónico y te enviaremos un enlace '
-                  'para recuperar tu contraseña.',
-                  textAlign: TextAlign.center,
-                  style: textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: SeedlyPalette.neutral[700],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Form(
-                  key: _formKey,
-                  autovalidateMode: _autovalidate,
-                  child: SeedlyInput(
-                    label: 'Correo electrónico *',
-                    hint: 'ejemplo@correo.com',
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.email],
-                    validator: seedlyEmailError,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                SeedlyButton(
-                  label: 'Enviar enlace',
-                  expand: true,
-                  trailing: SvgPicture.asset(
-                    'assets/images/recover_send.svg',
-                    width: 24,
-                    height: 24,
-                  ),
-                  onPressed: _send,
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
