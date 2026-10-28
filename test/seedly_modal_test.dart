@@ -8,6 +8,7 @@ import 'package:seedly/widgets/seedly_option_card.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 /// A screen whose button opens [open] and records what it completes with.
 Widget _launcher(
@@ -201,6 +202,7 @@ void main() {
         home: SeedlyHomeScreen(
           auth: FakeSeedlyAuthRepository(isSignedIn: true),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );
@@ -221,6 +223,7 @@ void main() {
         home: SeedlyHomeScreen(
           auth: FakeSeedlyAuthRepository(isSignedIn: true),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );

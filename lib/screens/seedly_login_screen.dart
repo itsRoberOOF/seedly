@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../models/seedly_errors.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
+import '../repositories/seedly_user_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
@@ -18,12 +19,14 @@ class SeedlyLoginScreen extends StatefulWidget {
     super.key,
     required this.auth,
     required this.projects,
+    required this.users,
   });
 
   final SeedlyAuthRepository auth;
 
-  /// Only handed on to the home screen.
+  /// Only handed on to the home and sign-up screens.
   final SeedlyProjectRepository projects;
+  final SeedlyUserRepository users;
 
   @override
   State<SeedlyLoginScreen> createState() => _SeedlyLoginScreenState();
@@ -55,8 +58,11 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
       if (!await signIn() || !mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              SeedlyHomeScreen(auth: widget.auth, projects: widget.projects),
+          builder: (_) => SeedlyHomeScreen(
+            auth: widget.auth,
+            projects: widget.projects,
+            users: widget.users,
+          ),
         ),
         (_) => false,
       );
@@ -77,8 +83,11 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
     hideSeedlyAlert();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            SeedlySignUpScreen(auth: widget.auth, projects: widget.projects),
+        builder: (_) => SeedlySignUpScreen(
+          auth: widget.auth,
+          projects: widget.projects,
+          users: widget.users,
+        ),
       ),
     );
   }

@@ -76,3 +76,22 @@ class SeedlyProjectException implements Exception {
   @override
   String toString() => message;
 }
+
+/// Why saving the profile failed.
+enum SeedlyProfileError { sessionExpired, saveFailed }
+
+class SeedlyProfileException implements Exception {
+  const SeedlyProfileException(this.reason);
+
+  final SeedlyProfileError reason;
+
+  /// Ready to show.
+  String get message => switch (reason) {
+    SeedlyProfileError.sessionExpired =>
+      'Tu sesión expiró. Vuelve a iniciar sesión.',
+    SeedlyProfileError.saveFailed => 'Inténtalo de nuevo en un momento.',
+  };
+
+  @override
+  String toString() => message;
+}

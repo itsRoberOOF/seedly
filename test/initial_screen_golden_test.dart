@@ -5,6 +5,7 @@ import 'package:seedly/main.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 void main() {
   testWidgets('Initial screen at phone size', (tester) async {
@@ -28,6 +29,7 @@ void main() {
       MyApp(
         auth: FakeSeedlyAuthRepository(),
         projects: FakeSeedlyProjectRepository(),
+        users: FakeSeedlyUserRepository(),
       ),
     );
     await tester.pump();

@@ -1,36 +1,178 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../models/seedly_errors.dart';
 import '../models/seedly_user_profile.dart';
+import '../repositories/seedly_user_repository.dart';
 import '../theme/seedly_theme.dart';
+import '../utils/seedly_validators.dart';
+import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_avatar.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 
 /// Figma "Perfil - Información": the Mi perfil tab. Name and email come from
-/// the signed-in [profile]; Usuario and Bio have nowhere to be stored yet, so
-/// they only show their placeholder. Nothing here is editable until a save
-/// flow exists. The page scrolls only when it does not fit, such as on small
-/// phones or with the keyboard open.
-class SeedlyProfileView extends StatelessWidget {
+/// the signed-in [profile] and can't be edited here. Usuario and Bio are
+/// saved to [users] on their own as each one loses focus (or, for Usuario,
+/// on the keyboard's action key), only when changed and valid, since Figma has
+/// no save button. The page scrolls only when it does not fit, such as on
+/// small phones or with the keyboard open.
+class SeedlyProfileView extends StatefulWidget {
   const SeedlyProfileView({
     super.key,
     required this.profile,
+    required this.users,
     required this.onSignOut,
     this.onEditPhoto,
   });
 
   final SeedlyUserProfile? profile;
+  final SeedlyUserRepository users;
   final VoidCallback onSignOut;
 
   /// Shows the avatar's edit button when set.
   final VoidCallback? onEditPhoto;
 
   @override
+  State<SeedlyProfileView> createState() => _SeedlyProfileViewState();
+}
+
+class _SeedlyProfileViewState extends State<SeedlyProfileView> {
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
+  final _bio = TextEditingController();
+  final _usernameFocus = FocusNode();
+  final _bioFocus = FocusNode();
+  var _autovalidate = AutovalidateMode.disabled;
+
+  /// What is saved, as shown in the fields ('' when empty).
+  var _savedUsername = '';
+  var _savedBio = '';
+  StreamSubscription<SeedlyUserProfile?>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameFocus.addListener(() {
+      if (!_usernameFocus.hasFocus) _save(username: true);
+    });
+    _bioFocus.addListener(() {
+      if (!_bioFocus.hasFocus) _save(bio: true);
+    });
+    final uid = widget.profile?.uid;
+    if (uid != null) {
+      // Shows what Auth knows right away and fills in the rest on arrival.
+      // A failed read leaves the fields empty; saving still reports errors.
+      _subscription = widget.users
+          .watchProfile(uid)
+          .listen(_onStored, onError: (Object _) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    // Leaving the tab with a field still focused: keep what was typed.
+    _save(username: true, bio: true, silent: true);
+    _usernameFocus.dispose();
+    _bioFocus.dispose();
+    _username.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  void _onStored(SeedlyUserProfile? stored) {
+    _savedUsername = stored?.username ?? '';
+    _savedBio = stored?.bio ?? '';
+    // Never replace what the person is typing.
+    if (!_usernameFocus.hasFocus && _username.text != _savedUsername) {
+      _username.text = _savedUsername;
+    }
+    if (!_bioFocus.hasFocus && _bio.text != _savedBio) {
+      _bio.text = _savedBio;
+    }
+  }
+
+  static String? _usernameValidator(String? value) =>
+      seedlyUsernameError(seedlyNormalizeUsername(value ?? ''));
+
+  /// Saves the given fields that changed. With [silent] there are no alerts
+  /// (the screen is going away) and an invalid username is dropped.
+  Future<void> _save({
+    bool username = false,
+    bool bio = false,
+    bool silent = false,
+  }) async {
+    final uid = widget.profile?.uid;
+    if (uid == null) return;
+    final newUsername = seedlyNormalizeUsername(_username.text);
+    final newBio = _bio.text.trim();
+    final usernameError = username ? _usernameValidator(_username.text) : null;
+    if (usernameError != null) {
+      if (silent || !mounted) return;
+      // Turns the border red; the message goes in an alert, as in the forms.
+      setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
+      _formKey.currentState?.validate();
+      showSeedlyAlert(
+        context,
+        style: SeedlyAlertStyle.danger,
+        title: 'Usuario no válido',
+        message: usernameError,
+      );
+      return;
+    }
+    final changeUsername = username && newUsername != _savedUsername;
+    final changeBio = bio && newBio != _savedBio;
+    // Show the stored form back (no "@", lowercase, trimmed).
+    if (!silent && username && _username.text != newUsername) {
+      _username.text = newUsername;
+    }
+    if (!changeUsername && !changeBio) return;
+    final users = widget.users;
+    // Counted as saved right away so the focus loss that follows a keyboard
+    // submit doesn't save it twice; undone if the save fails.
+    final (previousUsername, previousBio) = (_savedUsername, _savedBio);
+    if (changeUsername) _savedUsername = newUsername;
+    if (changeBio) _savedBio = newBio;
+    try {
+      final result = await users.updateProfile(
+        uid,
+        username: changeUsername
+            ? SeedlyField(newUsername.isEmpty ? null : newUsername)
+            : null,
+        bio: changeBio ? SeedlyField(newBio.isEmpty ? null : newBio) : null,
+      );
+      if (silent || !mounted) return;
+      showSeedlyAlert(
+        context,
+        style: SeedlyAlertStyle.success,
+        title: 'Perfil actualizado',
+        message: switch (result) {
+          SeedlyProfileSave.saved => 'Tus cambios ya están guardados.',
+          SeedlyProfileSave.pendingSync =>
+            'Tus cambios se guardarán cuando vuelva la conexión.',
+        },
+      );
+    } on SeedlyProfileException catch (error) {
+      if (changeUsername) _savedUsername = previousUsername;
+      if (changeBio) _savedBio = previousBio;
+      if (silent || !mounted) return;
+      showSeedlyAlert(
+        context,
+        style: SeedlyAlertStyle.danger,
+        title: 'No se pudo actualizar el perfil',
+        message: error.message,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final spacing = SeedlyMetrics.spacing;
+    final profile = widget.profile;
     // Figma's 48px top padding stands in for the status bar, so only the part
     // of it the system bar does not already cover is added.
     final top = math.max(
@@ -46,77 +188,106 @@ class SeedlyProfileView extends StatelessWidget {
     );
     return SafeArea(
       bottom: false,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(spacing['2xl']!, top, spacing['2xl']!, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Mi perfil',
-              style: Theme.of(context).textTheme.displaySmall
-                  ?.copyWith(color: SeedlyPalette.neutral[850]),
-            ),
-            SizedBox(height: spacing['2xl']),
-            Center(
-              child: SeedlyAvatar(
-                icon: 'assets/images/menu_profile.svg',
-                size: 140,
-                editInset: 2,
-                onEdit: onEditPhoto,
+      child: GestureDetector(
+        // Tapping the page's empty space leaves the field, which saves it.
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(
+            spacing['2xl']!,
+            top,
+            spacing['2xl']!,
+            24,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mi perfil',
+                style: Theme.of(context).textTheme.displaySmall
+                    ?.copyWith(color: SeedlyPalette.neutral[850]),
               ),
-            ),
-            SizedBox(height: spacing['2xl']),
-            Text('INFORMACIÓN', style: labelStyle),
-            SizedBox(height: spacing['md']),
-            SeedlyInput(
-              label: 'Nombre',
-              hint: 'Tu nombre',
-              readOnly: true,
-              initialValue: profile?.displayName,
-            ),
-            SizedBox(height: spacing['md']),
-            SeedlyInput(
-              label: 'Correo electrónico',
-              hint: 'Tu correo',
-              readOnly: true,
-              initialValue: profile?.email,
-            ),
-            SizedBox(height: spacing['md']),
-            const SeedlyInput(
-              label: 'Usuario',
-              hint: 'Tu usuario',
-              readOnly: true,
-              prefixAsset: 'assets/images/profile_at_sign.svg',
-            ),
-            SizedBox(height: spacing['md']),
-            const SeedlyInput(
-              label: 'Bio',
-              hint: 'Cuéntanos sobre ti',
-              readOnly: true,
-              fieldHeight: 86,
-              suffixAsset: 'assets/images/profile_expand.svg',
-            ),
-            SizedBox(height: spacing['md']),
-            Text('CUENTA', style: labelStyle),
-            SizedBox(height: spacing['sm']),
-            SeedlyButton(
-              label: 'Cerrar sesión',
-              variant: SeedlyButtonVariant.outline,
-              size: SeedlyButtonSize.large,
-              color: SeedlyPalette.danger[700],
-              expand: true,
-              onPressed: onSignOut,
-              trailing: SvgPicture.asset(
-                'assets/images/profile_log_out.svg',
-                width: 24,
-                height: 24,
-                colorFilter: ColorFilter.mode(
-                  SeedlyPalette.danger[700]!,
-                  BlendMode.srcIn,
+              SizedBox(height: spacing['2xl']),
+              Center(
+                child: SeedlyAvatar(
+                  icon: 'assets/images/menu_profile.svg',
+                  size: 140,
+                  editInset: 2,
+                  onEdit: widget.onEditPhoto,
                 ),
               ),
-            ),
-          ],
+              SizedBox(height: spacing['2xl']),
+              Text('INFORMACIÓN', style: labelStyle),
+              SizedBox(height: spacing['md']),
+              SeedlyInput(
+                label: 'Nombre',
+                hint: 'Tu nombre',
+                readOnly: true,
+                initialValue: profile?.displayName,
+              ),
+              SizedBox(height: spacing['md']),
+              SeedlyInput(
+                label: 'Correo electrónico',
+                hint: 'Tu correo',
+                readOnly: true,
+                initialValue: profile?.email,
+              ),
+              Form(
+                key: _formKey,
+                autovalidateMode: _autovalidate,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: spacing['md']),
+                    SeedlyInput(
+                      label: 'Usuario',
+                      hint: 'Tu usuario',
+                      controller: _username,
+                      focusNode: _usernameFocus,
+                      validator: _usernameValidator,
+                      prefixAsset: 'assets/images/profile_at_sign.svg',
+                      maxLength: seedlyUsernameMaxLength + 1,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _save(username: true),
+                    ),
+                    SizedBox(height: spacing['md']),
+                    SeedlyInput(
+                      label: 'Bio',
+                      hint: 'Cuéntanos sobre ti',
+                      controller: _bio,
+                      focusNode: _bioFocus,
+                      fieldHeight: 86,
+                      maxLength: seedlyBioMaxLength,
+                      textCapitalization: TextCapitalization.sentences,
+                      keyboardType: TextInputType.multiline,
+                      suffixAsset: 'assets/images/profile_expand.svg',
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: spacing['md']),
+              Text('CUENTA', style: labelStyle),
+              SizedBox(height: spacing['sm']),
+              SeedlyButton(
+                label: 'Cerrar sesión',
+                variant: SeedlyButtonVariant.outline,
+                size: SeedlyButtonSize.large,
+                color: SeedlyPalette.danger[700],
+                expand: true,
+                onPressed: widget.onSignOut,
+                trailing: SvgPicture.asset(
+                  'assets/images/profile_log_out.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(
+                    SeedlyPalette.danger[700]!,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

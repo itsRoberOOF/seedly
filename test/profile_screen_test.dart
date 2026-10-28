@@ -13,6 +13,7 @@ import 'package:seedly/widgets/seedly_menu.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
@@ -34,6 +35,7 @@ Future<FakeSeedlyAuthRepository> _openProfile(
       home: SeedlyHomeScreen(
         auth: auth,
         projects: FakeSeedlyProjectRepository(),
+        users: FakeSeedlyUserRepository(),
       ),
     ),
   );
@@ -76,7 +78,7 @@ void main() {
     expect(find.text('robermoran28@gmail.com'), findsOneWidget);
   });
 
-  testWidgets('Usuario and Bio show placeholders and are read-only', (
+  testWidgets('Usuario and Bio are editable, Nombre and Correo are not', (
     tester,
   ) async {
     await _openProfile(tester);
@@ -87,7 +89,7 @@ void main() {
         .widgetList<EditableText>(find.byType(EditableText))
         .toList();
     expect(fields, hasLength(4));
-    expect(fields.every((field) => field.readOnly), isTrue);
+    expect(fields.map((field) => field.readOnly), [true, true, false, false]);
   });
 
   testWidgets('fits 440x956 without scrolling', (tester) async {
@@ -215,6 +217,7 @@ void main() {
             displayName: name,
             createdAt: DateTime(2026),
           ),
+          users: FakeSeedlyUserRepository(),
           onSignOut: () {},
         ),
       ),

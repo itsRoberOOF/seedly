@@ -8,6 +8,7 @@ import 'package:seedly/widgets/seedly_alert.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
@@ -26,6 +27,7 @@ Future<FakeSeedlyAuthRepository> _openProfile(
       home: SeedlyHomeScreen(
         auth: auth,
         projects: FakeSeedlyProjectRepository(),
+        users: FakeSeedlyUserRepository(),
       ),
     ),
   );
@@ -44,6 +46,7 @@ void main() {
         home: SeedlyHomeScreen(
           auth: FakeSeedlyAuthRepository(isSignedIn: true),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );

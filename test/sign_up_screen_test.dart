@@ -11,6 +11,7 @@ import 'package:seedly/widgets/seedly_input.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 void main() {
   tearDown(hideSeedlyAlert);
@@ -33,6 +34,7 @@ void main() {
       home: SeedlySignUpScreen(
         auth: auth ?? FakeSeedlyAuthRepository(),
         projects: FakeSeedlyProjectRepository(),
+        users: FakeSeedlyUserRepository(),
       ),
     ),
   );
@@ -69,6 +71,7 @@ void main() {
         home: SeedlyLoginScreen(
           auth: FakeSeedlyAuthRepository(),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );
@@ -190,6 +193,7 @@ void main() {
         home: SeedlyLoginScreen(
           auth: FakeSeedlyAuthRepository(),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );
