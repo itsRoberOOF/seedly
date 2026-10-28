@@ -103,13 +103,17 @@ class SeedlyProfileView extends StatelessWidget {
               label: 'Cerrar sesión',
               variant: SeedlyButtonVariant.outline,
               size: SeedlyButtonSize.large,
-              color: SeedlyPalette.danger[600],
+              color: SeedlyPalette.danger[700],
               expand: true,
               onPressed: onSignOut,
               trailing: SvgPicture.asset(
                 'assets/images/profile_log_out.svg',
                 width: 24,
                 height: 24,
+                colorFilter: ColorFilter.mode(
+                  SeedlyPalette.danger[700]!,
+                  BlendMode.srcIn,
+                ),
               ),
             ),
           ],
