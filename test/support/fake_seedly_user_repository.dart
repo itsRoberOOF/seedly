@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_user_profile.dart';
@@ -44,7 +45,13 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
   /// Every [updateProfile] call, with the fields it was given (null: not
   /// given, so left alone).
   final updates =
-      <({SeedlyField<String>? username, SeedlyField<String>? bio})>[];
+      <
+        ({
+          SeedlyField<String>? username,
+          SeedlyField<String>? bio,
+          SeedlyField<Uint8List>? photo,
+        })
+      >[];
 
   /// Pushes [profile] to the open [watchProfile] streams.
   void emit(SeedlyUserProfile? profile) {
@@ -63,9 +70,10 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
     String uid, {
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
+    SeedlyField<Uint8List>? photo,
   }) async {
     if (updateError != null) throw updateError!;
-    updates.add((username: username, bio: bio));
+    updates.add((username: username, bio: bio, photo: photo));
     return updateResult;
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../models/seedly_errors.dart';
 import '../models/seedly_user_profile.dart';
 
@@ -18,5 +20,6 @@ abstract interface class SeedlyUserRepository {
     String uid, {
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
+    SeedlyField<Uint8List>? photo,
   });
 }

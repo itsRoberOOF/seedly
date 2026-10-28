@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/widgets/seedly_avatar.dart';
+
+import 'support/fake_seedly_image_picker.dart';
 
 const _icon = 'assets/images/menu_profile.svg';
 const _size = 140.0;
@@ -141,5 +144,68 @@ void main() {
     await tester.pump();
 
     expect(taps, 0);
+  });
+
+  group('content', () {
+    Future<void> pumpAvatar(WidgetTester tester, SeedlyAvatar avatar) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: Center(child: avatar)),
+          ),
+        );
+
+    testWidgets('initials replace the icon', (tester) async {
+      await pumpAvatar(
+        tester,
+        const SeedlyAvatar(icon: _icon, initials: 'RM', size: _size),
+      );
+
+      expect(find.text('RM'), findsOneWidget);
+      expect(find.byType(SvgPicture), findsNothing);
+    });
+
+    testWidgets('empty initials show the icon', (tester) async {
+      await pumpAvatar(
+        tester,
+        const SeedlyAvatar(icon: _icon, initials: '', size: _size),
+      );
+
+      expect(find.byType(SvgPicture), findsOneWidget);
+    });
+
+    testWidgets('the photo label defaults to the project image', (
+      tester,
+    ) async {
+      await pumpAvatar(tester, SeedlyAvatar(photo: tinyPng));
+
+      expect(
+        tester.widget<Image>(find.byType(Image)).semanticLabel,
+        'Imagen del proyecto',
+      );
+    });
+
+    testWidgets('a photo wins over initials and icon', (tester) async {
+      await pumpAvatar(
+        tester,
+        SeedlyAvatar(
+          icon: _icon,
+          initials: 'RM',
+          photo: tinyPng,
+          photoLabel: 'Tu foto',
+          size: _size,
+        ),
+      );
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('RM'), findsNothing);
+      expect(find.byType(SvgPicture), findsNothing);
+      expect(tester.widget<Image>(find.byType(Image)).semanticLabel, 'Tu foto');
+    });
+
+    test('asserts without icon, initials or photo', () {
+      expect(() => SeedlyAvatar(), throwsAssertionError);
+      expect(() => SeedlyAvatar(initials: ''), throwsAssertionError);
+      expect(() => SeedlyAvatar(initials: 'A'), returnsNormally);
+    });
   });
 }

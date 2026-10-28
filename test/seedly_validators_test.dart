@@ -34,6 +34,37 @@ void main() {
     });
   });
 
+  group('seedlyInitials', () {
+    test('uses the first letter of up to two words', () {
+      expect(seedlyInitials('Rober', null), 'R');
+      expect(seedlyInitials('Rober Morán', null), 'RM');
+      expect(seedlyInitials('Ana María de la Cruz', null), 'AM');
+    });
+
+    test('capitalizes and ignores extra spaces', () {
+      expect(seedlyInitials('  rober   morán  ', null), 'RM');
+    });
+
+    test('falls back to the email, then to nothing', () {
+      expect(seedlyInitials(null, 'ana@x.com'), 'A');
+      expect(seedlyInitials('', 'ana@x.com'), 'A');
+      expect(seedlyInitials('   ', 'ana@x.com'), 'A');
+      expect(seedlyInitials(null, null), '');
+      expect(seedlyInitials('', ''), '');
+      expect(seedlyInitials('---', '@x.com'), '');
+    });
+
+    test('skips leading punctuation', () {
+      expect(seedlyInitials('(ana) lópez', null), 'AL');
+    });
+
+    test('handles accents and digits', () {
+      expect(seedlyInitials('ángel', null), 'Á');
+      expect(seedlyInitials('3M Company', null), '3C');
+      expect(seedlyInitials(null, '7up@x.com'), '7');
+    });
+  });
+
   test('the bio limit matches firestore.rules', () {
     expect(seedlyBioMaxLength, 160);
   });

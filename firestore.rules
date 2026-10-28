@@ -61,8 +61,8 @@ service cloud.firestore {
     function validProfile() {
       let data = request.resource.data;
       return data.keys().hasOnly(
-               ['email', 'displayName', 'photoUrl', 'username', 'bio', 'providers',
-                'createdAt', 'lastSignInAt'])
+               ['email', 'displayName', 'photoUrl', 'username', 'bio', 'photo',
+                'providers', 'createdAt', 'lastSignInAt'])
         && data.email == request.auth.token.email
         && (data.displayName == null || data.displayName is string)
         && (data.photoUrl == null || data.photoUrl is string)
@@ -73,6 +73,9 @@ service cloud.firestore {
                 && data.username.matches('^[a-z0-9_]+$')))
         && (data.get('bio', null) == null
             || (data.bio is string && data.bio.size() <= 160))
+        // An avatar-sized JPEG; Firestore documents cap at 1 MiB.
+        && (data.get('photo', null) == null
+            || (data.photo is bytes && data.photo.size() <= 262144))
         && data.providers is list
         && data.createdAt is timestamp
         && data.lastSignInAt is timestamp;
