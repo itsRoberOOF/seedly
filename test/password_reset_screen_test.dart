@@ -152,9 +152,6 @@ void main() {
   testWidgets('an alert leaves the back arrow free to tap', (tester) async {
     await openFromLogin(tester, FakeSeedlyAuthRepository(), loginEmail: 'ana@');
     await send(tester);
-    // Sending scrolled down to the button; the arrow comes back on scroll.
-    await tester.ensureVisible(find.byTooltip('Volver'));
-    await tester.pumpAndSettle();
 
     expect(find.byType(SeedlyAlert), findsOneWidget);
     expect(
@@ -168,9 +165,14 @@ void main() {
     expect(find.byType(SeedlyAlert), findsNothing);
   });
 
-  testWidgets('it can be scrolled on a compact phone', (tester) async {
-    tester.view.physicalSize = const Size(320, 640);
+  Future<void> pumpAt(
+    WidgetTester tester,
+    Size size, {
+    double keyboard = 0,
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
@@ -179,9 +181,23 @@ void main() {
         home: SeedlyPasswordResetScreen(auth: FakeSeedlyAuthRepository()),
       ),
     );
-    await tester.ensureVisible(find.text('Enviar enlace'));
+  }
 
-    expect(find.text('Enviar enlace'), findsOneWidget);
+  testWidgets('it fits a standard phone without scrolling', (tester) async {
+    await pumpAt(tester, const Size(412, 892));
+
+    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    expect(scroll.position.maxScrollExtent, 0);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the keyboard never overflows the screen', (tester) async {
+    for (final size in const [Size(412, 892), Size(320, 640)]) {
+      await pumpAt(tester, size, keyboard: 300);
+      await tester.ensureVisible(find.text('Enviar enlace'));
+
+      expect(find.text('Enviar enlace'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: '$size with keyboard');
+    }
   });
 }
