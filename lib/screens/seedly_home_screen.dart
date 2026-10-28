@@ -6,6 +6,7 @@ import '../models/seedly_project.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../repositories/seedly_user_repository.dart';
+import '../services/seedly_image_picker.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_menu.dart';
@@ -22,17 +23,23 @@ class SeedlyHomeScreen extends StatefulWidget {
     required this.auth,
     required this.projects,
     required this.users,
+    this.imagePicker,
   });
 
   final SeedlyAuthRepository auth;
   final SeedlyProjectRepository projects;
   final SeedlyUserRepository users;
 
+  /// Replaced in tests so they never open the system gallery.
+  final SeedlyImagePicker? imagePicker;
+
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
 }
 
 class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
+  late final SeedlyImagePicker _picker =
+      widget.imagePicker ?? GallerySeedlyImagePicker();
   var _active = SeedlyMenuTab.inicio;
   bool _signingOut = false;
 
@@ -85,14 +92,6 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     }
   }
 
-  void _editPhoto() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Cambiar la foto aún no está disponible')),
-      );
-  }
-
   void _closeForm() {
     hideSeedlyAlert();
     setState(() => _creating = null);
@@ -126,6 +125,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               // form.
               key: ValueKey(creating),
               projects: widget.projects,
+              imagePicker: _picker,
               initialKind: creating,
               onClose: _closeForm,
               onCreated: _created,
@@ -134,8 +134,8 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
           ? SeedlyProfileView(
               profile: widget.auth.currentUser,
               users: widget.users,
+              picker: _picker,
               onSignOut: _signOut,
-              onEditPhoto: _editPhoto,
             )
           : null,
       bottomNavigationBar: SeedlyMenu(

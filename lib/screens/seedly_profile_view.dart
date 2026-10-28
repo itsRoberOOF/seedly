@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../modals/seedly_photo_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_user_profile.dart';
 import '../repositories/seedly_user_repository.dart';
+import '../services/seedly_image_picker.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
@@ -25,16 +28,16 @@ class SeedlyProfileView extends StatefulWidget {
     super.key,
     required this.profile,
     required this.users,
+    required this.picker,
     required this.onSignOut,
-    this.onEditPhoto,
   });
 
   final SeedlyUserProfile? profile;
   final SeedlyUserRepository users;
-  final VoidCallback onSignOut;
 
-  /// Shows the avatar's edit button when set.
-  final VoidCallback? onEditPhoto;
+  /// Where the avatar's edit button gets a photo from.
+  final SeedlyImagePicker picker;
+  final VoidCallback onSignOut;
 
   @override
   State<SeedlyProfileView> createState() => _SeedlyProfileViewState();
@@ -51,6 +54,9 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   /// What is saved, as shown in the fields ('' when empty).
   var _savedUsername = '';
   var _savedBio = '';
+
+  /// The saved photo, shown instead of the initials.
+  Uint8List? _photo;
   StreamSubscription<SeedlyUserProfile?>? _subscription;
 
   @override
@@ -87,6 +93,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   void _onStored(SeedlyUserProfile? stored) {
     _savedUsername = stored?.username ?? '';
     _savedBio = stored?.bio ?? '';
+    if (mounted) setState(() => _photo = stored?.photo);
     // Never replace what the person is typing.
     if (!_usernameFocus.hasFocus && _username.text != _savedUsername) {
       _username.text = _savedUsername;
@@ -146,27 +153,65 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
         bio: changeBio ? SeedlyField(newBio.isEmpty ? null : newBio) : null,
       );
       if (silent || !mounted) return;
-      showSeedlyAlert(
-        context,
-        style: SeedlyAlertStyle.success,
-        title: 'Perfil actualizado',
-        message: switch (result) {
-          SeedlyProfileSave.saved => 'Tus cambios ya están guardados.',
-          SeedlyProfileSave.pendingSync =>
-            'Tus cambios se guardarán cuando vuelva la conexión.',
-        },
-      );
+      _showSaved(result);
     } on SeedlyProfileException catch (error) {
       if (changeUsername) _savedUsername = previousUsername;
       if (changeBio) _savedBio = previousBio;
       if (silent || !mounted) return;
-      showSeedlyAlert(
-        context,
-        style: SeedlyAlertStyle.danger,
-        title: 'No se pudo actualizar el perfil',
-        message: error.message,
-      );
+      _showFailed(error);
     }
+  }
+
+  Future<void> _editPhoto() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final choice = await showSeedlyPhotoModal(
+      context,
+      picker: widget.picker,
+      hasPhoto: _photo != null,
+    );
+    final uid = widget.profile?.uid;
+    if (choice == null || uid == null || !mounted) return;
+    final photo = switch (choice) {
+      SeedlyPhotoPicked(:final photo) => photo,
+      SeedlyPhotoRemoved() => null,
+    };
+    final previous = _photo;
+    // Shown right away, put back if the save fails.
+    setState(() => _photo = photo);
+    try {
+      final result = await widget.users.updateProfile(
+        uid,
+        photo: SeedlyField(photo),
+      );
+      if (!mounted) return;
+      _showSaved(result);
+    } on SeedlyProfileException catch (error) {
+      if (!mounted) return;
+      setState(() => _photo = previous);
+      _showFailed(error);
+    }
+  }
+
+  void _showSaved(SeedlyProfileSave result) {
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.success,
+      title: 'Perfil actualizado',
+      message: switch (result) {
+        SeedlyProfileSave.saved => 'Tus cambios ya están guardados.',
+        SeedlyProfileSave.pendingSync =>
+          'Tus cambios se guardarán cuando vuelva la conexión.',
+      },
+    );
+  }
+
+  void _showFailed(SeedlyProfileException error) {
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.danger,
+      title: 'No se pudo actualizar el perfil',
+      message: error.message,
+    );
   }
 
   @override
@@ -212,9 +257,15 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
               Center(
                 child: SeedlyAvatar(
                   icon: 'assets/images/menu_profile.svg',
+                  initials: seedlyInitials(
+                    profile?.displayName,
+                    profile?.email,
+                  ),
+                  photo: _photo,
+                  photoLabel: 'Tu foto de perfil',
                   size: 140,
                   editInset: 2,
-                  onEdit: widget.onEditPhoto,
+                  onEdit: _editPhoto,
                 ),
               ),
               SizedBox(height: spacing['2xl']),

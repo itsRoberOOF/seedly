@@ -30,3 +30,20 @@ String? seedlyUsernameError(String normalized) {
             '$seedlyUsernameMaxLength caracteres: letras, números o guion '
             'bajo.';
 }
+
+/// Up to two capital letters for an avatar: the first letters of the first
+/// two words of [name], or the first letter of [email] when there is no name.
+/// Empty when neither has a letter or digit to show.
+String seedlyInitials(String? name, String? email) {
+  final letter = RegExp(r'[\p{L}\p{N}]', unicode: true);
+  String initialOf(String word) => letter.firstMatch(word)?.group(0) ?? '';
+  final fromName = (name ?? '')
+      .trim()
+      .split(RegExp(r'\s+'))
+      .map(initialOf)
+      .where((initial) => initial.isNotEmpty)
+      .take(2)
+      .join();
+  if (fromName.isNotEmpty) return fromName.toUpperCase();
+  return initialOf((email ?? '').split('@').first).toUpperCase();
+}

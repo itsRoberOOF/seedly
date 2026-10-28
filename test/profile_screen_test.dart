@@ -12,6 +12,7 @@ import 'package:seedly/widgets/seedly_input.dart';
 import 'package:seedly/widgets/seedly_menu.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
 
@@ -122,15 +123,14 @@ void main() {
     expect(find.text('Cerrar sesión'), findsOneWidget);
   });
 
-  testWidgets('the edit button explains photos are not available', (
-    tester,
-  ) async {
+  testWidgets('the edit button opens the photo modal', (tester) async {
     await _openProfile(tester);
 
     await tester.tap(find.byTooltip('Cambiar imagen'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('Cambiar la foto aún no está disponible'), findsOneWidget);
+    expect(find.text('Foto de perfil'), findsOneWidget);
+    expect(find.text('Elegir imagen'), findsOneWidget);
   });
 
   testWidgets('Cerrar sesión signs out and returns to the login', (
@@ -218,6 +218,7 @@ void main() {
             createdAt: DateTime(2026),
           ),
           users: FakeSeedlyUserRepository(),
+          picker: FakeSeedlyImagePicker(),
           onSignOut: () {},
         ),
       ),

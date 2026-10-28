@@ -23,6 +23,16 @@ void main() {
     expect(profile, contains('<= 160'));
   });
 
+  test('validProfile allows a photo of up to 256 KiB', () {
+    final keys = RegExp(
+      r'hasOnly\(\s*\[(.*?)\]',
+      dotAll: true,
+    ).firstMatch(profile)!.group(1)!;
+    expect(keys, contains("'photo'"));
+    expect(profile, contains('data.photo is bytes'));
+    expect(profile, contains('data.photo.size() <= 262144'));
+  });
+
   test('create requires a fresh lastSignInAt', () {
     expect(
       rules,

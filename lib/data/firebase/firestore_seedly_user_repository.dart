@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -45,6 +46,7 @@ class FirestoreSeedlyUserRepository implements SeedlyUserRepository {
         photoUrl: data['photoUrl'] as String?,
         username: data['username'] as String?,
         bio: data['bio'] as String?,
+        photo: (data['photo'] as Blob?)?.bytes,
         providers: [
           for (final provider in data['providers'] as List? ?? const [])
             provider as String,
@@ -62,10 +64,16 @@ class FirestoreSeedlyUserRepository implements SeedlyUserRepository {
     String uid, {
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
+    SeedlyField<Uint8List>? photo,
   }) async {
     final changes = <String, Object?>{
       if (username != null) 'username': _valueOrDelete(username.value),
       if (bio != null) 'bio': _valueOrDelete(bio.value),
+      // Avatar-sized, so it fits in the document; Storage needs Blaze.
+      if (photo != null)
+        'photo': _valueOrDelete(
+          photo.value == null ? null : Blob(photo.value!),
+        ),
     };
     if (changes.isEmpty) return SeedlyProfileSave.saved;
     // Offline, the write is already in the local cache and syncs later, but

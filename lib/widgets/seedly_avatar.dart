@@ -7,22 +7,35 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/seedly_theme.dart';
 
 /// Figma "Avatar" (Size=XXXXL, Type=Icon): a 120px round icon with an
-/// optional edit button on its lower right. The profile's is 140px.
+/// optional edit button on its lower right. The profile's is 140px and shows
+/// the person's [initials] when there is no photo (Figma has no variant for
+/// them, so they take the icon's colours).
 class SeedlyAvatar extends StatelessWidget {
   const SeedlyAvatar({
     super.key,
-    required this.icon,
+    this.icon,
+    this.initials,
     this.photo,
+    this.photoLabel = 'Imagen del proyecto',
     this.onEdit,
     this.size = 120,
     this.editInset = 0,
-  });
+  }) : assert(
+         icon != null || photo != null || (initials != null && initials != ''),
+         'An avatar needs an icon, initials or a photo',
+       );
 
   /// SVG asset drawn in the avatar's centre.
-  final String icon;
+  final String? icon;
 
-  /// An image that fills the circle instead of [icon].
+  /// Letters drawn in the centre instead of [icon], when set and not empty.
+  final String? initials;
+
+  /// An image that fills the circle instead of [icon] or [initials].
   final Uint8List? photo;
+
+  /// What assistive technology says about [photo].
+  final String photoLabel;
 
   /// Shows the edit button when set.
   final VoidCallback? onEdit;
@@ -32,6 +45,31 @@ class SeedlyAvatar extends StatelessWidget {
 
   /// How far the edit button sits in from the circle's lower right.
   final double editInset;
+
+  Widget _centre() {
+    final letters = initials;
+    if (letters != null && letters.isNotEmpty) {
+      return Text(
+        letters,
+        semanticsLabel: letters,
+        style: TextStyle(
+          fontSize: size * 48 / 140,
+          height: 1,
+          fontWeight: FontWeight.w600,
+          color: SeedlyPalette.primary[600],
+        ),
+      );
+    }
+    return SvgPicture.asset(
+      icon!,
+      width: size * 64 / 120,
+      height: size * 64 / 120,
+      colorFilter: ColorFilter.mode(
+        SeedlyPalette.primary[600]!,
+        BlendMode.srcIn,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,20 +95,10 @@ class SeedlyAvatar extends StatelessWidget {
                   width: double.infinity,
                   height: double.infinity,
                   gaplessPlayback: true,
-                  semanticLabel: 'Imagen del proyecto',
+                  semanticLabel: photoLabel,
                 ),
               )
-            : Center(
-                child: SvgPicture.asset(
-                  icon,
-                  width: size * 64 / 120,
-                  height: size * 64 / 120,
-                  colorFilter: ColorFilter.mode(
-                    SeedlyPalette.primary[600]!,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
+            : Center(child: _centre()),
       ),
     );
     if (onEdit == null) return avatar;

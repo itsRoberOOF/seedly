@@ -5,6 +5,8 @@ import 'package:seedly/data/firebase/firestore_seedly_user_repository.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_user_profile.dart';
 
+import 'support/fake_seedly_image_picker.dart';
+
 void main() {
   late FakeFirebaseFirestore firestore;
   late FirestoreSeedlyUserRepository users;
@@ -87,6 +89,15 @@ void main() {
     });
   });
 
+  test('watchProfile emits the photo as bytes', () async {
+    await users.saveProfile(profile);
+    expect((await users.watchProfile('ana').first)!.photo, isNull);
+
+    await users.updateProfile('ana', photo: SeedlyField(tinyPng));
+
+    expect((await users.watchProfile('ana').first)!.photo, tinyPng);
+  });
+
   group('updateProfile', () {
     Future<Map<String, dynamic>> data() async =>
         (await firestore.collection('users').doc('ana').get()).data()!;
@@ -120,6 +131,32 @@ void main() {
 
       expect((await data()).containsKey('username'), isFalse);
       expect((await data())['bio'], 'Hola');
+    });
+
+    test('a photo is stored as a Blob and leaves username and bio', () async {
+      await users.saveProfile(profile);
+      await users.updateProfile(
+        'ana',
+        username: const SeedlyField('ana_1'),
+        bio: const SeedlyField('Hola'),
+      );
+
+      await users.updateProfile('ana', photo: SeedlyField(tinyPng));
+
+      final photo = (await data())['photo'];
+      expect(photo, isA<Blob>());
+      expect((photo as Blob).bytes, tinyPng);
+      expect((await data())['username'], 'ana_1');
+      expect((await data())['bio'], 'Hola');
+    });
+
+    test('a null photo deletes the key', () async {
+      await users.saveProfile(profile);
+      await users.updateProfile('ana', photo: SeedlyField(tinyPng));
+
+      await users.updateProfile('ana', photo: const SeedlyField(null));
+
+      expect((await data()).containsKey('photo'), isFalse);
     });
 
     test('without fields it writes nothing, even without a document', () async {
@@ -174,5 +211,15 @@ void main() {
     final data = (await firestore.collection('users').doc('ana').get()).data()!;
     expect(data['username'], 'ana_1');
     expect(data['bio'], 'Hola');
+  });
+
+  test('signing in again keeps the photo', () async {
+    await users.saveProfile(profile);
+    await users.updateProfile('ana', photo: SeedlyField(tinyPng));
+
+    await users.saveProfile(profile);
+
+    final data = (await firestore.collection('users').doc('ana').get()).data()!;
+    expect((data['photo'] as Blob).bytes, tinyPng);
   });
 }

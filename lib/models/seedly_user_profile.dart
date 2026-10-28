@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// The account details mirrored into the database on each sign-in, plus what
 /// the person edits in Mi perfil. The password never leaves the auth provider.
 class SeedlyUserProfile {
@@ -8,6 +10,7 @@ class SeedlyUserProfile {
     this.photoUrl,
     this.username,
     this.bio,
+    this.photo,
     this.providers = const [],
     required this.createdAt,
   });
@@ -20,6 +23,9 @@ class SeedlyUserProfile {
   /// The handle shown after "@", lowercase and already validated.
   final String? username;
   final String? bio;
+
+  /// A small JPEG the person uploaded, shown instead of their initials.
+  final Uint8List? photo;
 
   /// Sign-in methods linked to the account, such as `password` or
   /// `google.com`.

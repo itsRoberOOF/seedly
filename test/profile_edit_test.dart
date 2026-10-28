@@ -11,6 +11,7 @@ import 'package:seedly/widgets/seedly_input.dart';
 import 'package:seedly/widgets/seedly_menu.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
 
@@ -39,6 +40,7 @@ Future<void> _openView(
         body: SeedlyProfileView(
           profile: _profile(),
           users: users,
+          picker: FakeSeedlyImagePicker(),
           onSignOut: () {},
         ),
       ),
