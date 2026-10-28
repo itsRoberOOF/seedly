@@ -145,7 +145,8 @@ class _SeedlyInputState extends State<SeedlyInput> {
         ),
         prefixIcon: prefix != null
             ? Padding(
-                padding: const EdgeInsets.only(left: 12, right: 12),
+                // Material adds 4px between the icon and the text.
+                padding: const EdgeInsets.only(left: 12, right: 8),
                 child: SvgPicture.asset(prefix, width: 24, height: 24),
               )
             : null,
@@ -228,15 +229,14 @@ class _SeedlyInputState extends State<SeedlyInput> {
 
 /// Outline border that also paints the Figma drop shadow. Painting it here
 /// keeps the shadow on the input box only, never behind the error message.
+/// There is no label to cut a gap for, so the gap padding Material adds
+/// around the text is 0: the text sits 12px from the edge, as in Figma.
 class _ShadowedOutlineBorder extends OutlineInputBorder {
-  const _ShadowedOutlineBorder({super.borderSide, super.borderRadius});
+  const _ShadowedOutlineBorder({super.borderSide, super.borderRadius})
+    : super(gapPadding: 0);
 
-  static const _shadow = BoxShadow(
-    color: Color(0x1F000000),
-    offset: Offset(0, 2),
-    blurRadius: 4,
-    spreadRadius: -2,
-  );
+  /// Figma's Shadows/100, which it applies twice.
+  static const _shadows = SeedlyShadows.card;
 
   @override
   _ShadowedOutlineBorder copyWith({
@@ -276,21 +276,23 @@ class _ShadowedOutlineBorder extends OutlineInputBorder {
     TextDirection? textDirection,
   }) {
     final box = borderRadius.toRRect(rect);
-    // The fill is already painted, so only draw the shadow outside the box.
+    // The fill is already painted, so only draw the shadows outside the box.
     canvas
       ..save()
       ..clipPath(
         Path.combine(
           PathOperation.difference,
-          Path()..addRect(rect.inflate(_shadow.blurRadius * 2)),
+          Path()..addRect(rect.inflate(_shadows.first.blurRadius * 2)),
           Path()..addRRect(box),
         ),
-      )
-      ..drawRRect(
-        box.shift(_shadow.offset).inflate(_shadow.spreadRadius),
-        _shadow.toPaint(),
-      )
-      ..restore();
+      );
+    for (final shadow in _shadows) {
+      canvas.drawRRect(
+        box.shift(shadow.offset).inflate(shadow.spreadRadius),
+        shadow.toPaint(),
+      );
+    }
+    canvas.restore();
     super.paint(
       canvas,
       rect,
