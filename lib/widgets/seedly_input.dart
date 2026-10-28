@@ -39,7 +39,8 @@ class SeedlyInput extends StatefulWidget {
   final String hint;
   final TextEditingController? controller;
 
-  /// The starting text when there is no [controller].
+  /// The starting text when there is no [controller]. A [readOnly] field also
+  /// follows later changes to it, since the user can't have edited the text.
   final String? initialValue;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
@@ -96,6 +97,11 @@ class _SeedlyInputState extends State<SeedlyInput> {
     final suffix = widget.suffixAsset;
     final prefix = widget.prefixAsset;
     Widget field = TextFormField(
+      // FormField reads its initial value once, so a read-only field starts
+      // over when the value it shows changes.
+      key: widget.readOnly && widget.controller == null
+          ? ValueKey(widget.initialValue)
+          : null,
       controller: widget.controller,
       initialValue: widget.controller == null ? widget.initialValue : null,
       validator: widget.validator,
@@ -147,12 +153,16 @@ class _SeedlyInputState extends State<SeedlyInput> {
         isDense: true,
         border: border,
         enabledBorder: border,
-        focusedBorder: border.copyWith(
-          borderSide: BorderSide(
-            color: SeedlyPalette.primary[500]!,
-            width: 1.5,
-          ),
-        ),
+        // A read-only field can still take focus (to select or copy), but
+        // the green border would suggest it can be edited.
+        focusedBorder: widget.readOnly
+            ? border
+            : border.copyWith(
+                borderSide: BorderSide(
+                  color: SeedlyPalette.primary[500]!,
+                  width: 1.5,
+                ),
+              ),
         errorBorder: border.copyWith(
           borderSide: BorderSide(color: SeedlyPalette.danger[600]!),
         ),
