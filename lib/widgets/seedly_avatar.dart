@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -80,10 +81,15 @@ class SeedlyAvatar extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           avatar,
+          // The 36px button sits in a 48px touch target; the target grows
+          // toward the circle's centre first so the button doesn't move.
           Positioned(
-            right: editInset,
-            bottom: editInset,
-            child: _EditButton(onPressed: onEdit!),
+            right: math.max(0, editInset - _EditButton.reach),
+            bottom: math.max(0, editInset - _EditButton.reach),
+            child: _EditButton(
+              onPressed: onEdit!,
+              inset: math.min(editInset, _EditButton.reach),
+            ),
           ),
         ],
       ),
@@ -91,34 +97,62 @@ class SeedlyAvatar extends StatelessWidget {
   }
 }
 
+/// The 36px edit button inside a 48px touch target (Material's minimum).
 class _EditButton extends StatelessWidget {
-  const _EditButton({required this.onPressed});
+  const _EditButton({required this.onPressed, required this.inset});
+
+  /// Extra touch area on each side of the 36px button.
+  static const reach = 6.0;
+  static const _target = 48.0;
 
   final VoidCallback onPressed;
 
+  /// How far the button sits in from the target's lower right.
+  final double inset;
+
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Cambiar imagen',
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: SeedlyPalette.neutral[50],
-          shape: BoxShape.circle,
-          boxShadow: SeedlyShadows.floating,
-        ),
-        child: Material(
-          color: SeedlyPalette.primary[500],
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onPressed,
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: SvgPicture.asset(
-                'assets/images/icon_edit_pencil.svg',
-                width: 20,
-                height: 20,
+    return Semantics(
+      button: true,
+      child: Tooltip(
+        message: 'Cambiar imagen',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: SizedBox.square(
+            dimension: _target,
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Padding(
+                padding: EdgeInsets.only(right: inset, bottom: inset),
+                // The 48px target above is the one assistive tech should see;
+                // the inner ink well would add a 32px duplicate.
+                child: ExcludeSemantics(
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: SeedlyPalette.neutral[50],
+                      shape: BoxShape.circle,
+                      boxShadow: SeedlyShadows.floating,
+                    ),
+                    child: Material(
+                      color: SeedlyPalette.primary[500],
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: onPressed,
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: SvgPicture.asset(
+                            'assets/images/icon_edit_pencil.svg',
+                            width: 20,
+                            height: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
