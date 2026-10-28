@@ -90,4 +90,73 @@ void main() {
     final result = _format('😀' * 81);
     expect(result.selection.extentOffset, 160);
   });
+
+  group('typing at a full field', () {
+    TextEditingValue type(TextEditingValue old, String text, int cursor) =>
+        _formatter.formatEditUpdate(
+          old,
+          TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: cursor),
+          ),
+        );
+
+    test('in the middle rejects the key and keeps the old value', () {
+      final old = TextEditingValue(
+        text: 'a' * 160,
+        selection: const TextSelection.collapsed(offset: 10),
+      );
+      final text = '${'a' * 10}X${'a' * 150}';
+      expect(text.length, 161);
+      final result = type(old, text, 11);
+      expect(result, old);
+      expect(result.text, 'a' * 160);
+    });
+
+    test('at the end rejects the key', () {
+      final old = TextEditingValue(
+        text: 'a' * 160,
+        selection: const TextSelection.collapsed(offset: 160),
+      );
+      expect(type(old, '${'a' * 160}X', 161), old);
+    });
+
+    test('a field full of emojis rejects one more character', () {
+      final old = TextEditingValue(
+        text: '😀' * 80,
+        selection: const TextSelection.collapsed(offset: 160),
+      );
+      expect(type(old, '${'😀' * 80}X', 161), old);
+    });
+
+    test('replacing a selection that makes room is allowed', () {
+      final old = TextEditingValue(
+        text: 'a' * 160,
+        selection: const TextSelection(baseOffset: 10, extentOffset: 20),
+      );
+      final text = '${'a' * 10}X${'a' * 140}';
+      expect(text.length, 151);
+      expect(type(old, text, 11).text, text);
+    });
+
+    test('replacing a selection with a longer paste still cuts', () {
+      final old = TextEditingValue(
+        text: 'a' * 160,
+        selection: const TextSelection(baseOffset: 10, extentOffset: 20),
+      );
+      final text = '${'a' * 10}${'b' * 30}${'a' * 140}';
+      final result = type(old, text, 40);
+      expect(result.text.length, 160);
+      expect(text.startsWith(result.text), isTrue);
+    });
+
+    test('pasting long text with room left cuts without splitting emojis', () {
+      final old = TextEditingValue(
+        text: 'a' * 100,
+        selection: const TextSelection.collapsed(offset: 100),
+      );
+      final result = type(old, 'a' * 100 + '😀' * 40, 180);
+      expect(result.text, 'a' * 100 + '😀' * 30);
+    });
+  });
 }

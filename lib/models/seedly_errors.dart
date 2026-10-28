@@ -87,8 +87,11 @@ class SeedlyProfileException implements Exception {
 
   /// Ready to show.
   String get message => switch (reason) {
+    // A missing profile document, a refusal by the rules, an expired session
+    // and old rules all arrive as the same error, so the text fits them all.
     SeedlyProfileError.sessionExpired =>
-      'Tu sesión expiró. Vuelve a iniciar sesión.',
+      'No se pudo guardar tu perfil. Cierra sesión y vuelve a entrar; si '
+          'sigue fallando, inténtalo más tarde.',
     SeedlyProfileError.saveFailed => 'Inténtalo de nuevo en un momento.',
   };
 
