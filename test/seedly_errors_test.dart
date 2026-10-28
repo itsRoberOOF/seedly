@@ -16,6 +16,7 @@ void main() {
           'Este método de acceso no está habilitado',
       SeedlyAuthError.googleFailed:
           'No se pudo iniciar sesión con Google. Inténtalo de nuevo.',
+      SeedlyAuthError.googleConfig: 'Google no pudo confirmar tu cuenta. Inténtalo de nuevo o inicia sesión con tu correo.',
       SeedlyAuthError.signInFailed:
           'No se pudo iniciar sesión. Inténtalo de nuevo.',
       SeedlyAuthError.signOutFailed: 'Inténtalo de nuevo en un momento.',

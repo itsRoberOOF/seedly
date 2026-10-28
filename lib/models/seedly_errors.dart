@@ -10,6 +10,7 @@ enum SeedlyAuthError {
   accountExistsWithDifferentCredential,
   methodNotAllowed,
   googleFailed,
+  googleConfig,
   signInFailed,
   signOutFailed,
   emailInUse,
@@ -37,6 +38,9 @@ class SeedlyAuthException implements Exception {
       'Este método de acceso no está habilitado',
     SeedlyAuthError.googleFailed =>
       'No se pudo iniciar sesión con Google. Inténtalo de nuevo.',
+    SeedlyAuthError.googleConfig =>
+      'Google no pudo confirmar tu cuenta. Inténtalo de nuevo o inicia '
+          'sesión con tu correo.',
     SeedlyAuthError.signInFailed =>
       'No se pudo iniciar sesión. Inténtalo de nuevo.',
     // The alert's title already says "No se pudo cerrar sesión".

@@ -108,10 +108,33 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
       _saveProfile(result.user);
       return true;
     } on GoogleSignInException catch (error) {
-      if (error.code == GoogleSignInExceptionCode.canceled) return false;
-      throw const SeedlyAuthException(SeedlyAuthError.googleFailed);
+      debugPrint(
+        'Seedly Google sign-in failed: ${error.code.name} '
+        '(${error.description})',
+      );
+      // Google also reports "[16] Account reauth failed." as `canceled` when
+      // the account is picked but cannot be verified (typically this build's
+      // signing key is not registered in Firebase). Only a picker closed on
+      // purpose ("Cancelled by user.") is silent.
+      final reauthFailed =
+          error.description?.toLowerCase().contains('reauth') ?? false;
+      if (error.code == GoogleSignInExceptionCode.canceled && !reauthFailed) {
+        return false;
+      }
+      throw SeedlyAuthException(switch (error.code) {
+        GoogleSignInExceptionCode.clientConfigurationError ||
+        GoogleSignInExceptionCode.providerConfigurationError ||
+        GoogleSignInExceptionCode.canceled => SeedlyAuthError.googleConfig,
+        _ => SeedlyAuthError.googleFailed,
+      });
     } on FirebaseAuthException catch (error) {
+      debugPrint('Seedly Google sign-in rejected: ${error.code}');
       throw SeedlyAuthException(_signInError(error.code));
+    } on Exception catch (error) {
+      // Anything unexpected must reach the user instead of ending the tap in
+      // silence.
+      debugPrint('Seedly Google sign-in crashed: $error');
+      throw const SeedlyAuthException(SeedlyAuthError.googleFailed);
     }
   }
 
