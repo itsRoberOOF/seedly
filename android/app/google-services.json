@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "479138116444-bs8gddnul0rsega0u57orc24u080kje1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.seedly.app",
+            "certificate_hash": "d378cd476b37a91aa40a9c7378c3b1fb4956266c"
+          }
+        },
+        {
           "client_id": "479138116444-i3icjtjlog089nv02j7a0oj7hjj23i2h.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
