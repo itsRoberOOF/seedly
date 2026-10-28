@@ -207,4 +207,27 @@ void main() {
     expect(repository.isSignedIn, isTrue);
     expect(logged, ['Seedly profile not saved: Exception: broken']);
   });
+
+  test('currentUser is null without a session', () {
+    expect(repository.currentUser, isNull);
+  });
+
+  test('currentUser reports the signed-in account', () async {
+    auth = MockFirebaseAuth(
+      mockUser: MockUser(
+        uid: 'ana',
+        email: 'ana@seedly.app',
+        displayName: 'Ana',
+      ),
+      signedIn: true,
+    );
+    repository = FirebaseSeedlyAuthRepository(users: users, auth: auth);
+
+    final user = repository.currentUser;
+
+    expect(user, isNotNull);
+    expect(user!.uid, 'ana');
+    expect(user.email, 'ana@seedly.app');
+    expect(user.displayName, 'Ana');
+  });
 }
