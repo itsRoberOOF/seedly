@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
+import 'package:seedly/models/seedly_user_profile.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
+import 'package:seedly/screens/seedly_profile_view.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_avatar.dart';
 import 'package:seedly/widgets/seedly_button.dart';
@@ -198,6 +200,37 @@ void main() {
 
     expect(find.text('Ana'), findsOneWidget);
     expect(find.text('Otro'), findsNothing);
+  });
+
+  testWidgets('rebuilding the profile view with another name updates Nombre', (
+    tester,
+  ) async {
+    Widget view(String name) => _wrap(
+      SizedBox(
+        height: 900,
+        child: SeedlyProfileView(
+          profile: SeedlyUserProfile(
+            uid: 'u1',
+            email: 'ana@example.com',
+            displayName: name,
+            createdAt: DateTime(2026),
+          ),
+          onSignOut: () {},
+        ),
+      ),
+    );
+    tester.view.physicalSize = const Size(440, 956);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(view('Ana'));
+    expect(find.text('Ana'), findsOneWidget);
+
+    await tester.pumpWidget(view('Ana Nueva'));
+
+    expect(find.text('Ana Nueva'), findsOneWidget);
+    expect(find.text('Ana'), findsNothing);
   });
 
   testWidgets('SeedlyInput renders a prefix icon and a fixed height', (
