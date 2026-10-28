@@ -68,4 +68,22 @@ void main() {
   test('the bio limit matches firestore.rules', () {
     expect(seedlyBioMaxLength, 160);
   });
+
+  group('seedlyBioError', () {
+    test('accepts up to 160 code units', () {
+      expect(seedlyBioError(''), isNull);
+      expect(seedlyBioError('a' * 160), isNull);
+      expect(seedlyBioError('😀' * 80), isNull);
+    });
+
+    test('rejects 161 code units', () {
+      expect(seedlyBioError('a' * 161), seedlyBioTooLong);
+      expect(seedlyBioError('😀' * 80 + 'a'), seedlyBioTooLong);
+      expect(seedlyBioError('😀' * 81), seedlyBioTooLong);
+    });
+
+    test('has the message for 160 characters', () {
+      expect(seedlyBioTooLong, 'La bio admite hasta 160 caracteres.');
+    });
+  });
 }

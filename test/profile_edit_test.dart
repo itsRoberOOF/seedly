@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/models/seedly_errors.dart';
@@ -27,8 +29,10 @@ SeedlyUserProfile _profile({String? username, String? bio}) =>
 
 Future<void> _openView(
   WidgetTester tester,
-  FakeSeedlyUserRepository users,
-) async {
+  FakeSeedlyUserRepository users, {
+  SeedlyUserProfile? profile,
+  VoidCallback? onSignOut,
+}) async {
   tester.view.physicalSize = const Size(440, 956);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -38,10 +42,10 @@ Future<void> _openView(
       theme: SeedlyTheme.light,
       home: Scaffold(
         body: SeedlyProfileView(
-          profile: _profile(),
+          profile: profile ?? _profile(),
           users: users,
           picker: FakeSeedlyImagePicker(),
-          onSignOut: () {},
+          onSignOut: onSignOut ?? () {},
         ),
       ),
     ),
@@ -317,5 +321,360 @@ void main() {
     await tester.pump();
 
     expect(_text(tester, _usernameField), 'ana_1');
+  });
+
+  group('bio length', () {
+    testWidgets('typing or pasting past 160 units is cut', (tester) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      await _type(tester, _bioField, 'a' * 170);
+      expect(_text(tester, _bioField), 'a' * 160);
+
+      await _type(tester, _bioField, '${'a' * 150}${'😀' * 10}');
+      expect(_text(tester, _bioField), '${'a' * 150}${'😀' * 5}');
+      await _blur(tester);
+
+      expect(users.updates.single.bio!.value!.length, 160);
+    });
+
+    testWidgets('80 emojis are saved', (tester) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      await _type(tester, _bioField, '😀' * 81);
+      expect(_text(tester, _bioField), '😀' * 80);
+      await _blur(tester);
+
+      expect(users.updates, hasLength(1));
+      expect(users.updates.single.bio!.value, '😀' * 80);
+      expect(find.text('Bio no válida'), findsNothing);
+    });
+  });
+
+  group('signing out', () {
+    Future<void> signOut(WidgetTester tester) async {
+      await tester.tap(find.text('Cerrar sesión'));
+      await tester.pump();
+    }
+
+    testWidgets('saves a focused bio first, then signs out', (tester) async {
+      final users = FakeSeedlyUserRepository();
+      final gate = Completer<void>();
+      users.updateGate = gate.future;
+      final log = <String>[];
+      await _openView(
+        tester,
+        users,
+        onSignOut: () => log.add('signOut:${users.updates.length}'),
+      );
+
+      await _type(tester, _bioField, 'Antes de salir');
+      await signOut(tester);
+      expect(users.updates, hasLength(1));
+      expect(users.updates.single.bio!.value, 'Antes de salir');
+      expect(log, isEmpty);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(log, ['signOut:1']);
+      expect(users.updates, hasLength(1));
+    });
+
+    testWidgets('saves a focused username first, then signs out', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      final gate = Completer<void>();
+      users.updateGate = gate.future;
+      final log = <String>[];
+      await _openView(
+        tester,
+        users,
+        onSignOut: () => log.add('signOut:${users.updates.length}'),
+      );
+
+      await _type(tester, _usernameField, 'rober');
+      await signOut(tester);
+      expect(users.updates, hasLength(1));
+      expect(users.updates.single.username!.value, 'rober');
+      expect(log, isEmpty);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(log, ['signOut:1']);
+    });
+
+    testWidgets('a failed save keeps the session and a retry signs out', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository()
+        ..updateError = const SeedlyProfileException(
+          SeedlyProfileError.saveFailed,
+        );
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await tester.pump();
+      expect(find.text('No se pudo actualizar el perfil'), findsOneWidget);
+      expect(signedOut, 0);
+
+      users.updateError = null;
+      await signOut(tester);
+      await tester.pump();
+      expect(users.updates, hasLength(1));
+      expect(users.updates.single.bio!.value, 'Hola');
+      expect(signedOut, 1);
+    });
+
+    testWidgets('an invalid username alerts and does not sign out', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await _type(tester, _usernameField, 'ab');
+      await signOut(tester);
+      await tester.pump();
+
+      expect(find.text('Usuario no válido'), findsOneWidget);
+      expect(users.updates, isEmpty);
+      expect(signedOut, 0);
+    });
+
+    testWidgets('without pending changes it signs out and saves nothing', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository(
+        stored: _profile(username: 'rober', bio: 'Hola'),
+      );
+      var signedOut = 0;
+      await _openView(tester, users, onSignOut: () => signedOut++);
+
+      await signOut(tester);
+      await tester.pump();
+
+      expect(users.updates, isEmpty);
+      expect(signedOut, 1);
+    });
+
+    testWidgets('Home saves the bio before it signs out', (tester) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final users = FakeSeedlyUserRepository();
+      final auth = FakeSeedlyAuthRepository(isSignedIn: true);
+      var updatesAtSignOut = -1;
+      auth.onSignOut = () => updatesAtSignOut = users.updates.length;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: SeedlyTheme.light,
+          home: SeedlyHomeScreen(
+            auth: auth,
+            projects: FakeSeedlyProjectRepository(),
+            users: users,
+          ),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SeedlyMenu),
+          matching: find.text('Mi perfil'),
+        ),
+      );
+      await tester.pump();
+      await _type(tester, _bioField, 'Hasta pronto');
+
+      await tester.tap(find.text('Cerrar sesión'));
+      await tester.pumpAndSettle();
+
+      expect(users.updates, hasLength(1));
+      expect(updatesAtSignOut, 1);
+      expect(auth.signOutCalls, 1);
+      expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+    });
+  });
+
+  testWidgets('an expired session shows its own message', (tester) async {
+    final users = FakeSeedlyUserRepository()
+      ..updateError = const SeedlyProfileException(
+        SeedlyProfileError.sessionExpired,
+      );
+    await _openView(tester, users);
+
+    await _type(tester, _bioField, 'Hola');
+    await _blur(tester);
+
+    expect(find.text('No se pudo actualizar el perfil'), findsOneWidget);
+    expect(
+      find.text('Tu sesión expiró. Vuelve a iniciar sesión.'),
+      findsOneWidget,
+    );
+  });
+
+  group('initials label', () {
+    String initialsLabel(WidgetTester tester) => tester
+        .widgetList<Text>(find.byType(Text))
+        .map((text) => text.semanticsLabel)
+        .whereType<String>()
+        .singleWhere((label) => label.startsWith('Iniciales'));
+
+    testWidgets('names the account by its display name', (tester) async {
+      await _openView(tester, FakeSeedlyUserRepository());
+      expect(initialsLabel(tester), 'Iniciales de Ana');
+    });
+
+    testWidgets('uses the display name given, with accents', (tester) async {
+      await _openView(
+        tester,
+        FakeSeedlyUserRepository(),
+        profile: SeedlyUserProfile(
+          uid: 'rober',
+          email: 'rober@seedly.app',
+          displayName: 'Rober Morán',
+          createdAt: DateTime(2026),
+        ),
+      );
+      expect(initialsLabel(tester), 'Iniciales de Rober Morán');
+    });
+
+    testWidgets('falls back to the email', (tester) async {
+      await _openView(
+        tester,
+        FakeSeedlyUserRepository(),
+        profile: SeedlyUserProfile(
+          uid: 'ana',
+          email: 'ana@seedly.app',
+          createdAt: DateTime(2026),
+        ),
+      );
+      expect(initialsLabel(tester), 'Iniciales de ana@seedly.app');
+    });
+  });
+
+  group('watching the profile', () {
+    Future<void> failAndWait(
+      WidgetTester tester,
+      FakeSeedlyUserRepository users,
+      Duration delay,
+    ) async {
+      final calls = users.watchCalls;
+      await tester.pump(delay - const Duration(milliseconds: 1));
+      expect(users.watchCalls, calls, reason: 'retried before $delay');
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(users.watchCalls, calls + 1, reason: 'no retry after $delay');
+    }
+
+    testWidgets('an error keeps the last values and re-reads after 2 s', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository(
+        stored: _profile(username: 'rober', bio: 'Hola'),
+      );
+      await _openView(tester, users);
+      expect(users.watchCalls, 1);
+
+      users.emitError();
+      await tester.pump();
+      expect(_text(tester, _usernameField), 'rober');
+      expect(_text(tester, _bioField), 'Hola');
+      expect(tester.takeException(), isNull);
+
+      await failAndWait(tester, users, const Duration(seconds: 2));
+      users.emit(_profile(username: 'nuevo', bio: 'Adiós'));
+      await tester.pump();
+      expect(_text(tester, _usernameField), 'nuevo');
+      expect(_text(tester, _bioField), 'Adiós');
+    });
+
+    testWidgets('backs off 2, 4, 8, 16, 30, 30 s and then gives up', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      users.failingWatches = 6;
+      users.emitError();
+      await tester.pump();
+      for (final seconds in [2, 4, 8, 16, 30, 30]) {
+        await failAndWait(tester, users, Duration(seconds: seconds));
+      }
+      expect(users.watchCalls, 7);
+
+      await tester.pump(const Duration(minutes: 5));
+      expect(users.watchCalls, 7);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('receiving data starts the backoff over', (tester) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      users.failingWatches = 1;
+      users.emitError();
+      await tester.pump();
+      await failAndWait(tester, users, const Duration(seconds: 2));
+      await failAndWait(tester, users, const Duration(seconds: 4));
+      // That read succeeded and reported the profile.
+      users.emitError();
+      await tester.pump();
+      await failAndWait(tester, users, const Duration(seconds: 2));
+    });
+
+    testWidgets('leaving the view cancels the retry', (tester) async {
+      final users = FakeSeedlyUserRepository();
+      await _openView(tester, users);
+
+      users.emitError();
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 1));
+
+      expect(users.watchCalls, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('signing out from Home leaves no pending retry', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final users = FakeSeedlyUserRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: SeedlyTheme.light,
+          home: SeedlyHomeScreen(
+            auth: FakeSeedlyAuthRepository(isSignedIn: true),
+            projects: FakeSeedlyProjectRepository(),
+            users: users,
+          ),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SeedlyMenu),
+          matching: find.text('Mi perfil'),
+        ),
+      );
+      await tester.pump();
+      users.emitError();
+      await tester.pump();
+
+      await tester.tap(find.text('Cerrar sesión'));
+      await tester.pumpAndSettle();
+      users.emitError();
+      await tester.pump(const Duration(minutes: 1));
+
+      expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

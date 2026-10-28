@@ -34,7 +34,9 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
 
   /// The profile [watchProfile] reports; set it to push a new value.
   SeedlyUserProfile? stored;
-  late final _changes = StreamController<SeedlyUserProfile?>.broadcast();
+  late final _changes = StreamController<SeedlyUserProfile?>.broadcast(
+    sync: true,
+  );
 
   /// Thrown by [updateProfile] when set.
   SeedlyProfileException? updateError;
@@ -53,6 +55,20 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
         })
       >[];
 
+  /// Holds [updateProfile] after it records the call, until it completes.
+  Future<void>? updateGate;
+
+  /// How many times [watchProfile] was subscribed to.
+  int watchCalls = 0;
+
+  /// The next this-many [watchProfile] streams fail at once, without
+  /// reporting [stored].
+  int failingWatches = 0;
+
+  /// Fails the open [watchProfile] streams.
+  void emitError([Object error = 'permission-denied']) =>
+      _changes.addError(error);
+
   /// Pushes [profile] to the open [watchProfile] streams.
   void emit(SeedlyUserProfile? profile) {
     stored = profile;
@@ -60,9 +76,32 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
   }
 
   @override
-  Stream<SeedlyUserProfile?> watchProfile(String uid) async* {
-    yield stored;
-    yield* _changes.stream;
+  Stream<SeedlyUserProfile?> watchProfile(String uid) {
+    watchCalls++;
+    final fails = failingWatches > 0;
+    if (fails) failingWatches--;
+    StreamSubscription<SeedlyUserProfile?>? changes;
+    late final StreamController<SeedlyUserProfile?> controller;
+    controller = StreamController<SeedlyUserProfile?>(
+      sync: true,
+      onListen: () {
+        if (fails) {
+          controller.addError(StateError('watch failed'));
+          return;
+        }
+        controller.add(stored);
+        changes = _changes.stream.listen(
+          controller.add,
+          onError: controller.addError,
+        );
+      },
+      // No future returned: a failing listener that cancels on error would
+      // wait for it, and a fake clock never gets there.
+      onCancel: () {
+        changes?.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   @override
@@ -74,6 +113,7 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
   }) async {
     if (updateError != null) throw updateError!;
     updates.add((username: username, bio: bio, photo: photo));
+    await updateGate;
     return updateResult;
   }
 }

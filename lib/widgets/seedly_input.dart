@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/seedly_theme.dart';
@@ -35,6 +36,7 @@ class SeedlyInput extends StatefulWidget {
     this.fieldHeight,
     this.focusNode,
     this.onFieldSubmitted,
+    this.inputFormatters,
   });
 
   final String label;
@@ -81,6 +83,9 @@ class SeedlyInput extends StatefulWidget {
   /// Called when the keyboard's action key is pressed.
   final ValueChanged<String>? onFieldSubmitted;
 
+  /// Applied to what is typed or pasted, such as a UTF-16 length cap.
+  final List<TextInputFormatter>? inputFormatters;
+
   @override
   State<SeedlyInput> createState() => _SeedlyInputState();
 }
@@ -113,6 +118,7 @@ class _SeedlyInputState extends State<SeedlyInput> {
       controller: widget.controller,
       focusNode: widget.focusNode,
       onFieldSubmitted: widget.onFieldSubmitted,
+      inputFormatters: widget.inputFormatters,
       initialValue: widget.controller == null ? widget.initialValue : null,
       validator: widget.validator,
       // An empty error keeps the red border without taking any space
