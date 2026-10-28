@@ -83,8 +83,17 @@ class FirestoreSeedlyUserRepository implements SeedlyUserRepository {
       return SeedlyProfileSave.saved;
     } on TimeoutException {
       return SeedlyProfileSave.pendingSync;
-    } on FirebaseException {
-      throw const SeedlyProfileException(SeedlyProfileError.saveFailed);
+    } on FirebaseException catch (error) {
+      // Without a profile document the rules read an update as a create they
+      // refuse, so a missing document arrives as permission-denied: the
+      // account has to sign in again for its profile to be written.
+      final missing =
+          error.code == 'permission-denied' || error.code == 'not-found';
+      throw SeedlyProfileException(
+        missing
+            ? SeedlyProfileError.sessionExpired
+            : SeedlyProfileError.saveFailed,
+      );
     }
   }
 
