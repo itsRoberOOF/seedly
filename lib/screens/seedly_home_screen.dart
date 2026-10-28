@@ -5,6 +5,7 @@ import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
+import '../repositories/seedly_user_repository.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_menu.dart';
@@ -20,10 +21,12 @@ class SeedlyHomeScreen extends StatefulWidget {
     super.key,
     required this.auth,
     required this.projects,
+    required this.users,
   });
 
   final SeedlyAuthRepository auth;
   final SeedlyProjectRepository projects;
+  final SeedlyUserRepository users;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -44,8 +47,11 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              SeedlyLoginScreen(auth: widget.auth, projects: widget.projects),
+          builder: (_) => SeedlyLoginScreen(
+            auth: widget.auth,
+            projects: widget.projects,
+            users: widget.users,
+          ),
         ),
         (_) => false,
       );
@@ -127,6 +133,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
           : _active == SeedlyMenuTab.perfil
           ? SeedlyProfileView(
               profile: widget.auth.currentUser,
+              users: widget.users,
               onSignOut: _signOut,
               onEditPhoto: _editPhoto,
             )

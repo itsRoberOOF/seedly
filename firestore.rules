@@ -6,7 +6,13 @@ service cloud.firestore {
     // Firebase Auth stores and verifies them.
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && validProfile();
+      allow create: if isOwner(uid) && validProfile()
+        && request.resource.data.lastSignInAt == request.time;
+      // Signing in stamps lastSignInAt; editing the profile leaves it as is,
+      // so changing the bio never fakes a sign-in.
+      allow update: if isOwner(uid) && validProfile()
+        && (request.resource.data.lastSignInAt == request.time
+            || request.resource.data.lastSignInAt == resource.data.lastSignInAt);
       allow delete: if false;
     }
 
@@ -55,13 +61,21 @@ service cloud.firestore {
     function validProfile() {
       let data = request.resource.data;
       return data.keys().hasOnly(
-               ['email', 'displayName', 'photoUrl', 'providers', 'createdAt', 'lastSignInAt'])
+               ['email', 'displayName', 'photoUrl', 'username', 'bio', 'providers',
+                'createdAt', 'lastSignInAt'])
         && data.email == request.auth.token.email
         && (data.displayName == null || data.displayName is string)
         && (data.photoUrl == null || data.photoUrl is string)
+        // A handle without the "@", as the app stores it.
+        && (data.get('username', null) == null
+            || (data.username is string
+                && data.username.size() >= 3 && data.username.size() <= 20
+                && data.username.matches('^[a-z0-9_]+$')))
+        && (data.get('bio', null) == null
+            || (data.bio is string && data.bio.size() <= 160))
         && data.providers is list
         && data.createdAt is timestamp
-        && data.lastSignInAt == request.time;
+        && data.lastSignInAt is timestamp;
     }
 
     function validProject() {

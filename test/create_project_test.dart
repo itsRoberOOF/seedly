@@ -22,6 +22,7 @@ import 'package:seedly/services/seedly_image_picker.dart';
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 /// Monday 12 October 2026.
 final _today = DateTime(2026, 10, 12);
@@ -47,6 +48,7 @@ Future<FakeSeedlyProjectRepository> _openFromHome(
       home: SeedlyHomeScreen(
         auth: FakeSeedlyAuthRepository(isSignedIn: true),
         projects: fake,
+        users: FakeSeedlyUserRepository(),
       ),
     ),
   );

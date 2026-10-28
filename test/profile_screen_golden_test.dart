@@ -7,6 +7,7 @@ import 'package:seedly/widgets/seedly_menu.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 void main() {
   testWidgets('Profile screen at Figma phone size', (tester) async {
@@ -32,6 +33,7 @@ void main() {
             email: 'robermoran28@gmail.com',
           ),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );

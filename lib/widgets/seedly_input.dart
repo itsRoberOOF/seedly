@@ -33,6 +33,8 @@ class SeedlyInput extends StatefulWidget {
     this.prefixAsset,
     this.suffixAsset,
     this.fieldHeight,
+    this.focusNode,
+    this.onFieldSubmitted,
   });
 
   final String label;
@@ -73,6 +75,12 @@ class SeedlyInput extends StatefulWidget {
   /// Textarea.
   final double? fieldHeight;
 
+  /// Lets the form react to the field gaining or losing focus.
+  final FocusNode? focusNode;
+
+  /// Called when the keyboard's action key is pressed.
+  final ValueChanged<String>? onFieldSubmitted;
+
   @override
   State<SeedlyInput> createState() => _SeedlyInputState();
 }
@@ -103,6 +111,8 @@ class _SeedlyInputState extends State<SeedlyInput> {
           ? ValueKey(widget.initialValue)
           : null,
       controller: widget.controller,
+      focusNode: widget.focusNode,
+      onFieldSubmitted: widget.onFieldSubmitted,
       initialValue: widget.controller == null ? widget.initialValue : null,
       validator: widget.validator,
       // An empty error keeps the red border without taking any space

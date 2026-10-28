@@ -7,6 +7,7 @@ import 'package:seedly/widgets/seedly_menu.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 Color? _labelColor(WidgetTester tester, SeedlyMenuTab tab) =>
     tester.widget<Text>(find.text(tab.label)).style?.color;
@@ -189,6 +190,7 @@ void main() {
         home: SeedlyHomeScreen(
           auth: FakeSeedlyAuthRepository(isSignedIn: true),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );

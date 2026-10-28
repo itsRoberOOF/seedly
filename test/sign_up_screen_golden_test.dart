@@ -6,6 +6,7 @@ import 'package:seedly/theme/seedly_theme.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
+import 'support/fake_seedly_user_repository.dart';
 
 void main() {
   testWidgets('Sign-up screen at Figma phone size', (tester) async {
@@ -27,6 +28,7 @@ void main() {
         home: SeedlySignUpScreen(
           auth: FakeSeedlyAuthRepository(),
           projects: FakeSeedlyProjectRepository(),
+          users: FakeSeedlyUserRepository(),
         ),
       ),
     );
