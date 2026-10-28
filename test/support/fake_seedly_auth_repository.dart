@@ -77,12 +77,16 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
 
   int signOutCalls = 0;
 
+  /// Runs as [signOut] starts, to tell what happened before it.
+  void Function()? onSignOut;
+
   /// Thrown by [signOut] when set.
   SeedlyAuthException? signOutError;
 
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    onSignOut?.call();
     if (signOutError != null) throw signOutError!;
     isSignedIn = false;
   }

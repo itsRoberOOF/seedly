@@ -15,6 +15,7 @@ class SeedlyAvatar extends StatelessWidget {
     super.key,
     this.icon,
     this.initials,
+    this.initialsLabel,
     this.photo,
     this.photoLabel = 'Imagen del proyecto',
     this.onEdit,
@@ -30,6 +31,10 @@ class SeedlyAvatar extends StatelessWidget {
 
   /// Letters drawn in the centre instead of [icon], when set and not empty.
   final String? initials;
+
+  /// What assistive technology says for [initials]; without it the letters
+  /// would be read one by one.
+  final String? initialsLabel;
 
   /// An image that fills the circle instead of [icon] or [initials].
   final Uint8List? photo;
@@ -51,7 +56,7 @@ class SeedlyAvatar extends StatelessWidget {
     if (letters != null && letters.isNotEmpty) {
       return Text(
         letters,
-        semanticsLabel: letters,
+        semanticsLabel: initialsLabel ?? 'Iniciales $letters',
         style: TextStyle(
           fontSize: size * 48 / 140,
           height: 1,

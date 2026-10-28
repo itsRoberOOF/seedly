@@ -164,6 +164,39 @@ void main() {
       expect(find.byType(SvgPicture), findsNothing);
     });
 
+    testWidgets('initials are read with the label, or a default', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SeedlyAvatar(
+              icon: _icon,
+              initials: 'RM',
+              initialsLabel: 'Iniciales de Rober Morán',
+              size: _size,
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.widget<Text>(find.text('RM')).semanticsLabel,
+        'Iniciales de Rober Morán',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SeedlyAvatar(icon: _icon, initials: 'RM', size: _size),
+          ),
+        ),
+      );
+      expect(
+        tester.widget<Text>(find.text('RM')).semanticsLabel,
+        'Iniciales RM',
+      );
+    });
+
     testWidgets('empty initials show the icon', (tester) async {
       await pumpAvatar(
         tester,

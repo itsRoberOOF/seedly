@@ -11,6 +11,7 @@ import '../models/seedly_user_profile.dart';
 import '../repositories/seedly_user_repository.dart';
 import '../services/seedly_image_picker.dart';
 import '../theme/seedly_theme.dart';
+import '../utils/seedly_input_formatters.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_avatar.dart';
@@ -58,6 +59,18 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   /// The saved photo, shown instead of the initials.
   Uint8List? _photo;
   StreamSubscription<SeedlyUserProfile?>? _subscription;
+  Timer? _retry;
+  var _failedReads = 0;
+
+  /// Saves still waiting for the database, so signing out can wait for them.
+  final _saving = <Future<bool>>{};
+
+  /// Pause before reading the profile again after the stream fails, doubling
+  /// up to [_maxRetryDelay]; after [_maxReadRetries] failures in a row it
+  /// stops until the tab is opened again.
+  static const _firstRetryDelay = Duration(seconds: 2);
+  static const _maxRetryDelay = Duration(seconds: 30);
+  static const _maxReadRetries = 6;
 
   @override
   void initState() {
@@ -68,18 +81,39 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
     _bioFocus.addListener(() {
       if (!_bioFocus.hasFocus) _save(bio: true);
     });
+    _watch();
+  }
+
+  /// Shows what Auth knows right away and fills in the rest on arrival. A
+  /// failed read keeps the last values on screen and tries again later;
+  /// saving still reports its own errors.
+  void _watch() {
     final uid = widget.profile?.uid;
-    if (uid != null) {
-      // Shows what Auth knows right away and fills in the rest on arrival.
-      // A failed read leaves the fields empty; saving still reports errors.
-      _subscription = widget.users
-          .watchProfile(uid)
-          .listen(_onStored, onError: (Object _) {});
-    }
+    if (uid == null) return;
+    _subscription?.cancel();
+    _subscription = widget.users
+        .watchProfile(uid)
+        .listen(_onStored, onError: _onWatchError, cancelOnError: true);
+  }
+
+  void _onWatchError(Object _) {
+    if (_failedReads >= _maxReadRetries) return;
+    final delay = Duration(
+      milliseconds: math.min(
+        _firstRetryDelay.inMilliseconds * (1 << _failedReads),
+        _maxRetryDelay.inMilliseconds,
+      ),
+    );
+    _failedReads++;
+    _retry?.cancel();
+    _retry = Timer(delay, () {
+      if (mounted) _watch();
+    });
   }
 
   @override
   void dispose() {
+    _retry?.cancel();
     _subscription?.cancel();
     // Leaving the tab with a field still focused: keep what was typed.
     _save(username: true, bio: true, silent: true);
@@ -91,6 +125,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   }
 
   void _onStored(SeedlyUserProfile? stored) {
+    _failedReads = 0;
     _savedUsername = stored?.username ?? '';
     _savedBio = stored?.bio ?? '';
     if (mounted) setState(() => _photo = stored?.photo);
@@ -107,29 +142,42 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       seedlyUsernameError(seedlyNormalizeUsername(value ?? ''));
 
   /// Saves the given fields that changed. With [silent] there are no alerts
-  /// (the screen is going away) and an invalid username is dropped.
-  Future<void> _save({
+  /// (the screen is going away) and an invalid username is dropped. Completes
+  /// with false when something that had to be saved was not, after telling
+  /// the person why.
+  Future<bool> _save({
     bool username = false,
     bool bio = false,
     bool silent = false,
+  }) {
+    final saving = _saveFields(username: username, bio: bio, silent: silent);
+    _saving.add(saving);
+    return saving.whenComplete(() => _saving.remove(saving));
+  }
+
+  Future<bool> _saveFields({
+    required bool username,
+    required bool bio,
+    required bool silent,
   }) async {
     final uid = widget.profile?.uid;
-    if (uid == null) return;
+    if (uid == null) return true;
     final newUsername = seedlyNormalizeUsername(_username.text);
     final newBio = _bio.text.trim();
     final usernameError = username ? _usernameValidator(_username.text) : null;
-    if (usernameError != null) {
-      if (silent || !mounted) return;
+    final bioError = bio ? seedlyBioError(newBio) : null;
+    if (usernameError != null || bioError != null) {
+      if (silent || !mounted) return false;
       // Turns the border red; the message goes in an alert, as in the forms.
       setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
       _formKey.currentState?.validate();
       showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
-        title: 'Usuario no válido',
-        message: usernameError,
+        title: usernameError != null ? 'Usuario no válido' : 'Bio no válida',
+        message: usernameError ?? bioError!,
       );
-      return;
+      return false;
     }
     final changeUsername = username && newUsername != _savedUsername;
     final changeBio = bio && newBio != _savedBio;
@@ -137,7 +185,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
     if (!silent && username && _username.text != newUsername) {
       _username.text = newUsername;
     }
-    if (!changeUsername && !changeBio) return;
+    if (!changeUsername && !changeBio) return true;
     final users = widget.users;
     // Counted as saved right away so the focus loss that follows a keyboard
     // submit doesn't save it twice; undone if the save fails.
@@ -152,14 +200,28 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
             : null,
         bio: changeBio ? SeedlyField(newBio.isEmpty ? null : newBio) : null,
       );
-      if (silent || !mounted) return;
-      _showSaved(result);
+      if (!silent && mounted) _showSaved(result);
+      return true;
     } on SeedlyProfileException catch (error) {
       if (changeUsername) _savedUsername = previousUsername;
       if (changeBio) _savedBio = previousBio;
-      if (silent || !mounted) return;
-      _showFailed(error);
+      if (!silent && mounted) _showFailed(error);
+      return false;
     }
+  }
+
+  /// Signs out only once what is being typed has been saved: the tap on the
+  /// button doesn't take focus from the field, so nothing would save it, and
+  /// once signed out there is no account to save it to. A failed save keeps
+  /// the person here with its alert, so they can try again or fix it.
+  Future<void> _signOut() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    // Unfocusing starts the saves of the fields that were focused; this
+    // covers any other change, and then every save in flight is awaited.
+    final remaining = _save(username: true, bio: true);
+    final results = await Future.wait([..._saving, remaining]);
+    if (!mounted || results.contains(false)) return;
+    widget.onSignOut();
   }
 
   Future<void> _editPhoto() async {
@@ -261,6 +323,9 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
                     profile?.displayName,
                     profile?.email,
                   ),
+                  initialsLabel:
+                      'Iniciales de '
+                      '${profile?.displayName ?? profile?.email ?? 'tu cuenta'}',
                   photo: _photo,
                   photoLabel: 'Tu foto de perfil',
                   size: 140,
@@ -309,7 +374,10 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
                       controller: _bio,
                       focusNode: _bioFocus,
                       fieldHeight: 86,
-                      maxLength: seedlyBioMaxLength,
+                      // Counted in UTF-16 units, as firestore.rules count it.
+                      inputFormatters: const [
+                        SeedlyUtf16LengthFormatter(seedlyBioMaxLength),
+                      ],
                       textCapitalization: TextCapitalization.sentences,
                       keyboardType: TextInputType.multiline,
                       suffixAsset: 'assets/images/profile_expand.svg',
@@ -326,7 +394,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
                 size: SeedlyButtonSize.large,
                 color: SeedlyPalette.danger[700],
                 expand: true,
-                onPressed: widget.onSignOut,
+                onPressed: _signOut,
                 trailing: SvgPicture.asset(
                   'assets/images/profile_log_out.svg',
                   width: 24,
