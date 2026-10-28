@@ -61,9 +61,8 @@ void main() {
         expect(size.height, greaterThanOrEqualTo(48));
       });
 
-      // The InkWell inside the 48px target exposes its own 32px tappable
-      // semantics node, so the guidelines fail today. Re-enable once lib
-      // merges or excludes it.
+      // Only the 48px target may reach assistive tech: the ink well inside
+      // is excluded from semantics so it adds no smaller tappable node.
       for (final (name, guideline) in [
         ('Android', androidTapTargetGuideline),
         ('iOS', iOSTapTargetGuideline),
@@ -74,7 +73,7 @@ void main() {
 
           await expectLater(tester, meetsGuideline(guideline));
           semantics.dispose();
-        }, skip: true);
+        });
       }
 
       testWidgets('is a labelled button for assistive tech', (tester) async {
