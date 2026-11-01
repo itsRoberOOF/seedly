@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'data/firebase/firebase_seedly_auth_repository.dart';
@@ -18,6 +20,12 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // Emails Firebase sends for us, like the password reset, go out in Spanish.
   await FirebaseAuth.instance.setLanguageCode('es');
+  // Local testing: flutter run -d chrome --dart-define=FIRESTORE_EMULATOR=127.0.0.1
+  // Without it, the app talks to the real database as always.
+  const emulatorHost = String.fromEnvironment('FIRESTORE_EMULATOR');
+  if (kDebugMode && emulatorHost.isNotEmpty) {
+    FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, 8080);
+  }
   final users = FirestoreSeedlyUserRepository();
   final auth = FirebaseSeedlyAuthRepository(users: users);
   final projects = FirestoreSeedlyProjectRepository(auth: auth);
