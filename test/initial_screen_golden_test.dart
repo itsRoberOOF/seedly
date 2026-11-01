@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/main.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_drops_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
 
 void main() {
@@ -28,6 +29,7 @@ void main() {
       MyApp(
         auth: FakeSeedlyAuthRepository(),
         projects: FakeSeedlyProjectRepository(),
+        drops: FakeSeedlyDropsRepository(),
       ),
     );
     await tester.pump();
