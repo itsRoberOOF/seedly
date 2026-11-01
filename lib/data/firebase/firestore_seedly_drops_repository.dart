@@ -74,17 +74,120 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
   }
 
   @override
-  Future<String> startWateringSession() => throw UnimplementedError();
+  Future<String> startWateringSession() async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('sessions').doc();
+    // The server stamps the start, so nobody can claim minutes they didn't
+    // water. Started offline, it is stamped when it syncs.
+    await _commit(
+      ref.set({'ownerId': uid, 'startedAt': FieldValue.serverTimestamp()}),
+    );
+    return ref.id;
+  }
 
   @override
-  Future<int> payWateringSession(String sessionId, int minutes) =>
-      throw UnimplementedError();
+  Future<int> payWateringSession(String sessionId, int minutes) async {
+    final uid = _requireUser();
+    final amount =
+        minutes.clamp(0, SeedlyDrops.maxWateringMinutes) *
+        SeedlyDrops.perWateringMinute;
+    if (amount == 0) return 0;
+    return _pay(uid, SeedlyDropSource.watering, sessionId, amount);
+  }
 
   @override
-  Stream<SeedlyPlantState> watchPlantState() => throw UnimplementedError();
+  Stream<SeedlyPlantState> watchPlantState() {
+    final uid = _requireUser();
+    // A plain controller rather than async*: cancelling an async* stream
+    // waits for its loop to end, and this loop never ends on its own.
+    final states = StreamController<SeedlyPlantState>();
+    final subscriptions = <StreamSubscription<void>>[];
+    var phase = 1;
+    var total = 0;
+
+    // A sum isn't a live query, so it runs again whenever the phase changes
+    // or this device writes. Drops paid on another device show up on the
+    // next of those, or the next time the screen opens.
+    Future<void> refresh() async {
+      try {
+        total = await _total(uid);
+      } on FirebaseException {
+        // Sums need the server; offline the last one stays.
+      }
+      if (!states.isClosed) {
+        states.add(SeedlyPlantState(phase: phase, totalDrops: total));
+      }
+    }
+
+    states
+      ..onListen = () async {
+        try {
+          await _ensureProgress(uid);
+        } on SeedlyDropsException {
+          // Offline with nothing cached; the next visit creates it.
+        }
+        subscriptions
+          ..add(
+            _progress(uid).snapshots().listen((snapshot) {
+              phase = snapshot.data()?['phase'] as int? ?? 1;
+              refresh();
+            }, onError: states.addError),
+          )
+          ..add(_changed.stream.listen((_) => refresh()));
+      }
+      ..onCancel = () async {
+        for (final subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      };
+    return states.stream;
+  }
 
   @override
-  Future<void> growPlant() => throw UnimplementedError();
+  Future<void> growPlant() async {
+    final uid = _requireUser();
+    await _ensureProgress(uid);
+    final phase = (await _read(_progress(uid)))?['phase'] as int? ?? 1;
+    final int total;
+    try {
+      total = await _total(uid);
+    } on FirebaseException {
+      throw const SeedlyDropsException(SeedlyDropsError.saveFailed);
+    }
+    if (!SeedlyPlantState(phase: phase, totalDrops: total).canGrow) {
+      throw const SeedlyDropsException(SeedlyDropsError.notEnoughDrops);
+    }
+    // The rules only let the phase go up by one.
+    await _commit(
+      _progress(uid).set({
+        'phase': phase + 1,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  DocumentReference<Map<String, dynamic>> _progress(String uid) =>
+      _firestore.collection('progress').doc(uid);
+
+  /// The rules only accept phase 1 for a new progress document.
+  Future<void> _ensureProgress(String uid) async {
+    if (await _read(_progress(uid)) != null) return;
+    await _commit(
+      _progress(uid).set({
+        'phase': 1,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  /// Every drop the user has, summed by the server without reading them.
+  Future<int> _total(String uid) async {
+    final snapshot = await _drops
+        .where('ownerId', isEqualTo: uid)
+        .aggregate(sum('amount'))
+        .get();
+    return (snapshot.getSum('amount') ?? 0).round();
+  }
 
   /// Writes the payment unless it already exists. The rules reject a second
   /// write anyway (it would be an update); checking first keeps that from
