@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/data/firebase/firestore_seedly_drops_repository.dart';
+import 'package:seedly/models/seedly_drops.dart';
 import 'package:seedly/models/seedly_errors.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
@@ -128,6 +129,104 @@ void main() {
       expect(await drops.addProjectDrops('small'), 0);
       expect(await drops.addProjectDrops('open'), 0);
       expect(await drops.addProjectDrops('missing'), 0);
+    });
+  });
+
+  group('watering', () {
+    test('starts a session stamped by the server', () async {
+      final id = await drops.startWateringSession();
+
+      final data =
+          (await firestore.collection('sessions').doc(id).get()).data()!;
+      // firestore.rules rejects any other key.
+      expect(data.keys, unorderedEquals(['ownerId', 'startedAt']));
+      expect(data['ownerId'], 'ana');
+    });
+
+    test('pays whole minutes once per session', () async {
+      final id = await drops.startWateringSession();
+
+      expect(await drops.payWateringSession(id, 45), 45);
+      expect(await drops.payWateringSession(id, 45), 0);
+      expect((await drop('watering_$id'))!['amount'], 45);
+    });
+
+    test('caps a session at 120 minutes and skips empty ones', () async {
+      final long = await drops.startWateringSession();
+      final empty = await drops.startWateringSession();
+
+      expect(await drops.payWateringSession(long, 500), 120);
+      expect(await drops.payWateringSession(empty, 0), 0);
+      expect(await drop('watering_$empty'), isNull);
+    });
+  });
+
+  group('plant', () {
+    Future<void> seedDrops(int amount) =>
+        firestore.collection('drops').doc('watering_seed').set({
+          'ownerId': 'ana',
+          'source': 'watering',
+          'refId': 'seed',
+          'amount': amount,
+          'createdAt': Timestamp.fromDate(now),
+        });
+
+    test('a new user starts in phase 1 with no drops', () async {
+      expect(
+        await drops.watchPlantState().first,
+        const SeedlyPlantState(phase: 1, totalDrops: 0),
+      );
+      final progress =
+          (await firestore.collection('progress').doc('ana').get()).data()!;
+      // firestore.rules rejects any other key.
+      expect(progress.keys, unorderedEquals(['phase', 'updatedAt']));
+      expect(progress['phase'], 1);
+    });
+
+    test('sums only the user drops and updates after paying', () async {
+      await seedDrops(20);
+      await firestore.collection('drops').doc('task_x').set({
+        'ownerId': 'beto',
+        'amount': 999,
+      });
+      await seedTask('t1');
+      final states = <SeedlyPlantState>[];
+      final subscription = drops.watchPlantState().listen(states.add);
+      // Lets the fake's snapshot and sum resolve.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      await drops.addTaskDrops('t1');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(states.first.totalDrops, 20);
+      expect(states.last.totalDrops, 23);
+      await subscription.cancel();
+    });
+
+    test('grows one phase when the goal is reached', () async {
+      await seedDrops(600);
+
+      await drops.growPlant();
+
+      expect(
+        await drops.watchPlantState().first,
+        const SeedlyPlantState(phase: 2, totalDrops: 600),
+      );
+    });
+
+    test('refuses to grow without enough drops', () async {
+      await seedDrops(149);
+
+      expect(
+        drops.growPlant,
+        throwsA(
+          isA<SeedlyDropsException>().having(
+            (e) => e.reason,
+            'reason',
+            SeedlyDropsError.notEnoughDrops,
+          ),
+        ),
+      );
     });
   });
 
