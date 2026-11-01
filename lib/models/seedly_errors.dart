@@ -76,3 +76,25 @@ class SeedlyProjectException implements Exception {
   @override
   String toString() => message;
 }
+
+/// Why paying drops or growing the plant failed.
+enum SeedlyDropsError { sessionExpired, notEnoughDrops, saveFailed }
+
+class SeedlyDropsException implements Exception {
+  const SeedlyDropsException(this.reason);
+
+  final SeedlyDropsError reason;
+
+  /// Ready to show.
+  String get message => switch (reason) {
+    SeedlyDropsError.sessionExpired =>
+      'Tu sesión expiró. Vuelve a iniciar sesión.',
+    SeedlyDropsError.notEnoughDrops =>
+      'Aún no tienes gotas suficientes para crecer.',
+    SeedlyDropsError.saveFailed =>
+      'No se pudieron guardar tus gotas. Inténtalo de nuevo.',
+  };
+
+  @override
+  String toString() => message;
+}

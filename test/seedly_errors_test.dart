@@ -61,4 +61,14 @@ void main() {
       });
     }
   });
+
+  test('every drops error has a Spanish message', () {
+    for (final reason in SeedlyDropsError.values) {
+      expect(SeedlyDropsException(reason).message, isNotEmpty);
+    }
+    expect(
+      const SeedlyDropsException(SeedlyDropsError.notEnoughDrops).message,
+      'Aún no tienes gotas suficientes para crecer.',
+    );
+  });
 }
