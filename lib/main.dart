@@ -12,6 +12,7 @@ import 'firebase_options.dart';
 import 'repositories/seedly_auth_repository.dart';
 import 'repositories/seedly_drops_repository.dart';
 import 'repositories/seedly_project_repository.dart';
+import 'screens/seedly_drops_debug_view.dart';
 import 'screens/seedly_loading_screen.dart';
 import 'theme/seedly_theme.dart';
 
@@ -45,13 +46,20 @@ class MyApp extends StatelessWidget {
   final SeedlyProjectRepository projects;
   final SeedlyDropsRepository drops;
 
+  // Local testing: --dart-define=DROPS_PANEL=true opens the drops panel
+  // instead of the app. Debug builds only.
+  static const _dropsPanel = kDebugMode && bool.fromEnvironment('DROPS_PANEL');
+
   @override
   Widget build(BuildContext context) {
+    final app = SeedlyLoadingScreen(auth: auth, projects: projects);
     return MaterialApp(
       title: 'Seedly',
       debugShowCheckedModeBanner: false,
       theme: SeedlyTheme.light,
-      home: SeedlyLoadingScreen(auth: auth, projects: projects),
+      home: _dropsPanel
+          ? SeedlyDropsDebugView(auth: auth, drops: drops, app: app)
+          : app,
     );
   }
 }
