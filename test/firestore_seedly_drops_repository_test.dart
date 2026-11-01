@@ -230,6 +230,13 @@ void main() {
     });
   });
 
+  test('an empty id pays nothing and does not throw', () async {
+    expect(await drops.addTaskDrops(''), 0);
+    expect(await drops.addProjectDrops(''), 0);
+    await drops.removeTaskDrops('');
+    expect((await firestore.collection('drops').get()).docs, isEmpty);
+  });
+
   test('signed out, every call reports an expired session', () async {
     auth.isSignedIn = false;
 

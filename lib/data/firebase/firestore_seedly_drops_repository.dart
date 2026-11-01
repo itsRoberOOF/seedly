@@ -37,6 +37,8 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
   @override
   Future<int> addTaskDrops(String taskId) async {
     final uid = _requireUser();
+    // Firestore rejects an empty document path; nothing to pay for anyway.
+    if (taskId.isEmpty) return 0;
     final task = await _read(_firestore.collection('tasks').doc(taskId));
     if (task?['ownerId'] != uid || task?['done'] != true) return 0;
     if (await _tasksPaidToday(uid) >= SeedlyDrops.maxRewardedTasksPerDay) {
@@ -48,6 +50,7 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
   @override
   Future<void> removeTaskDrops(String taskId) async {
     _requireUser();
+    if (taskId.isEmpty) return;
     final ref = _drops.doc(_dropId(SeedlyDropSource.task, taskId));
     if (await _read(ref) == null) return;
     await _commit(ref.delete());
@@ -56,6 +59,7 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
   @override
   Future<int> addProjectDrops(String projectId) async {
     final uid = _requireUser();
+    if (projectId.isEmpty) return 0;
     final project = await _read(
       _firestore.collection('projects').doc(projectId),
     );
