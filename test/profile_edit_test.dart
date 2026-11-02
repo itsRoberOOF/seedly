@@ -16,6 +16,7 @@ import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/keep_plant_still.dart';
 
 SeedlyUserProfile _profile({String? username, String? bio}) =>
     SeedlyUserProfile(
@@ -73,6 +74,7 @@ Future<void> _type(WidgetTester tester, Finder field, String text) async {
 }
 
 void main() {
+  keepPlantStill();
   tearDown(hideSeedlyAlert);
 
   testWidgets('shows the saved username and bio', (tester) async {

@@ -23,6 +23,7 @@ import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/keep_plant_still.dart';
 
 /// Monday 12 October 2026.
 final _today = DateTime(2026, 10, 12);
@@ -126,6 +127,7 @@ SeedlyProjectKind _variant(WidgetTester tester) => tester
     .selected;
 
 void main() {
+  keepPlantStill();
   tearDown(hideSeedlyAlert);
 
   group('opening', () {
