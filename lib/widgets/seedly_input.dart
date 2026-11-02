@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,6 +36,7 @@ class SeedlyInput extends StatefulWidget {
     this.prefixAsset,
     this.suffixAsset,
     this.fieldHeight,
+    this.maxFieldHeight,
     this.focusNode,
     this.onFieldSubmitted,
     this.inputFormatters,
@@ -69,13 +72,18 @@ class SeedlyInput extends StatefulWidget {
   /// SVG drawn inside the box before the text, such as the "@" of a handle.
   final String? prefixAsset;
 
-  /// SVG drawn in the box's lower right corner, such as a textarea's expand
-  /// icon. Only for multi-line inputs given a [fieldHeight].
+  /// SVG drawn in the box's lower right corner as a textarea's resize handle:
+  /// dragging it makes the box taller or shorter, between [fieldHeight] and
+  /// [maxFieldHeight]. Only for multi-line inputs given a [fieldHeight].
   final String? suffixAsset;
 
   /// Fixes the box height; the text then fills it from the top, like Figma's
-  /// Textarea.
+  /// Textarea. With a [suffixAsset] it is the starting and smallest height.
   final double? fieldHeight;
+
+  /// The tallest the [suffixAsset] handle can drag the box; three times
+  /// [fieldHeight] when not given.
+  final double? maxFieldHeight;
 
   /// Lets the form react to the field gaining or losing focus.
   final FocusNode? focusNode;
@@ -99,6 +107,35 @@ Widget? _noCounter(
 
 class _SeedlyInputState extends State<SeedlyInput> {
   bool _obscured = true;
+
+  /// The box height after dragging the resize handle, if it was dragged.
+  double? _resizedHeight;
+
+  double get _minHeight => widget.fieldHeight!;
+  double get _maxHeight =>
+      math.max(widget.maxFieldHeight ?? _minHeight * 3, _minHeight);
+
+  void _resize(DragUpdateDetails details) {
+    final current = _resizedHeight ?? _minHeight;
+    setState(
+      () => _resizedHeight = (current + details.delta.dy).clamp(
+        _minHeight,
+        _maxHeight,
+      ),
+    );
+  }
+
+  @override
+  void didUpdateWidget(SeedlyInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final height = _resizedHeight;
+    if (height == null) return;
+    if (widget.fieldHeight == null) {
+      _resizedHeight = null;
+    } else {
+      _resizedHeight = height.clamp(_minHeight, _maxHeight);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,16 +246,41 @@ class _SeedlyInputState extends State<SeedlyInput> {
     );
     if (fixedHeight) {
       field = SizedBox(
-        height: widget.fieldHeight,
+        height: _resizedHeight ?? widget.fieldHeight,
         child: Stack(
           children: [
             Positioned.fill(child: field),
             if (suffix != null)
+              // A 44px touch target around the 20px icon, which keeps its
+              // 12px inset from the corner.
               Positioned(
-                right: 12,
-                bottom: 12,
-                child: IgnorePointer(
-                  child: SvgPicture.asset(suffix, width: 20, height: 20),
+                right: 0,
+                bottom: 0,
+                child: Semantics(
+                  label: 'Cambiar tamaño de ${widget.label}',
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeUpDown,
+                    child: GestureDetector(
+                      key: const ValueKey('seedly-input-resize'),
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: widget.enabled ? _resize : null,
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Align(
+                          alignment: Alignment.bottomRight,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: SvgPicture.asset(
+                              suffix,
+                              width: 20,
+                              height: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
           ],
