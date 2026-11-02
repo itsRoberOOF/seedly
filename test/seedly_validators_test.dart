@@ -66,24 +66,24 @@ void main() {
   });
 
   test('the bio limit matches firestore.rules', () {
-    expect(seedlyBioMaxLength, 160);
+    expect(seedlyBioMaxLength, 250);
   });
 
   group('seedlyBioError', () {
-    test('accepts up to 160 code units', () {
+    test('accepts up to 250 code units', () {
       expect(seedlyBioError(''), isNull);
-      expect(seedlyBioError('a' * 160), isNull);
-      expect(seedlyBioError('😀' * 80), isNull);
+      expect(seedlyBioError('a' * 250), isNull);
+      expect(seedlyBioError('😀' * 125), isNull);
     });
 
-    test('rejects 161 code units', () {
-      expect(seedlyBioError('a' * 161), seedlyBioTooLong);
-      expect(seedlyBioError('😀' * 80 + 'a'), seedlyBioTooLong);
-      expect(seedlyBioError('😀' * 81), seedlyBioTooLong);
+    test('rejects 251 code units', () {
+      expect(seedlyBioError('a' * 251), seedlyBioTooLong);
+      expect(seedlyBioError('😀' * 125 + 'a'), seedlyBioTooLong);
+      expect(seedlyBioError('😀' * 126), seedlyBioTooLong);
     });
 
-    test('has the message for 160 characters', () {
-      expect(seedlyBioTooLong, 'La bio admite hasta 160 caracteres.');
+    test('has the message for 250 characters', () {
+      expect(seedlyBioTooLong, 'La bio admite hasta 250 caracteres.');
     });
   });
 }

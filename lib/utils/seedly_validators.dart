@@ -7,7 +7,7 @@ String? seedlyEmailError(String? value) {
 
 /// The longest bio `firestore.rules` accepts, counted in UTF-16 code units
 /// (`String.length`), as the rules' `size()` does: an emoji takes two.
-const seedlyBioMaxLength = 160;
+const seedlyBioMaxLength = 250;
 
 const seedlyBioTooLong = 'La bio admite hasta $seedlyBioMaxLength caracteres.';
 

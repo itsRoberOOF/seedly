@@ -20,7 +20,7 @@ void main() {
     expect(profile, contains('>= 3'));
     expect(profile, contains('<= 20'));
     expect(profile, contains(r"'^[a-z0-9_]+$'"));
-    expect(profile, contains('<= 160'));
+    expect(profile, contains('<= 250'));
   });
 
   test('validProfile allows a photo of up to 256 KiB', () {
