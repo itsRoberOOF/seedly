@@ -1,14 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'data/firebase/firebase_seedly_auth_repository.dart';
+import 'data/firebase/firestore_seedly_drops_repository.dart';
 import 'data/firebase/firestore_seedly_project_repository.dart';
 import 'data/firebase/firestore_seedly_user_repository.dart';
 import 'firebase_options.dart';
 import 'repositories/seedly_auth_repository.dart';
+import 'repositories/seedly_drops_repository.dart';
 import 'repositories/seedly_project_repository.dart';
 import 'repositories/seedly_user_repository.dart';
+import 'screens/seedly_drops_debug_view.dart';
 import 'screens/seedly_loading_screen.dart';
 import 'theme/seedly_theme.dart';
 
@@ -17,10 +22,17 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // Emails Firebase sends for us, like the password reset, go out in Spanish.
   await FirebaseAuth.instance.setLanguageCode('es');
+  // Local testing: flutter run -d chrome --dart-define=FIRESTORE_EMULATOR=127.0.0.1
+  // Without it, the app talks to the real database as always.
+  const emulatorHost = String.fromEnvironment('FIRESTORE_EMULATOR');
+  if (kDebugMode && emulatorHost.isNotEmpty) {
+    FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, 8080);
+  }
   final users = FirestoreSeedlyUserRepository();
   final auth = FirebaseSeedlyAuthRepository(users: users);
   final projects = FirestoreSeedlyProjectRepository(auth: auth);
-  runApp(MyApp(auth: auth, projects: projects, users: users));
+  final drops = FirestoreSeedlyDropsRepository(auth: auth);
+  runApp(MyApp(auth: auth, projects: projects, users: users, drops: drops));
 }
 
 class MyApp extends StatelessWidget {
@@ -29,19 +41,32 @@ class MyApp extends StatelessWidget {
     required this.auth,
     required this.projects,
     required this.users,
+    required this.drops,
   });
 
   final SeedlyAuthRepository auth;
   final SeedlyProjectRepository projects;
   final SeedlyUserRepository users;
+  final SeedlyDropsRepository drops;
+
+  // Local testing: --dart-define=DROPS_PANEL=true opens the drops panel
+  // instead of the app. Debug builds only.
+  static const _dropsPanel = kDebugMode && bool.fromEnvironment('DROPS_PANEL');
 
   @override
   Widget build(BuildContext context) {
+    final app = SeedlyLoadingScreen(
+      auth: auth,
+      projects: projects,
+      users: users,
+    );
     return MaterialApp(
       title: 'Seedly',
       debugShowCheckedModeBanner: false,
       theme: SeedlyTheme.light,
-      home: SeedlyLoadingScreen(auth: auth, projects: projects, users: users),
+      home: _dropsPanel
+          ? SeedlyDropsDebugView(auth: auth, drops: drops, app: app)
+          : app,
     );
   }
 }

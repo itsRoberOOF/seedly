@@ -4,6 +4,7 @@ import 'package:seedly/main.dart';
 import 'package:seedly/widgets/seedly_loader.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_drops_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
 
@@ -14,6 +15,7 @@ void main() {
         auth: FakeSeedlyAuthRepository(),
         projects: FakeSeedlyProjectRepository(),
         users: FakeSeedlyUserRepository(),
+        drops: FakeSeedlyDropsRepository(),
       ),
     );
 
@@ -33,6 +35,7 @@ void main() {
           auth: FakeSeedlyAuthRepository(),
           projects: FakeSeedlyProjectRepository(),
           users: FakeSeedlyUserRepository(),
+          drops: FakeSeedlyDropsRepository(),
         ),
       );
       await tester.pump(const Duration(milliseconds: 1500));

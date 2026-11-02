@@ -39,6 +39,40 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    // One document per payment, named `source_refId`: paying twice would be
+    // an update, which nobody may do. The amounts repeat SeedlyDrops in
+    // lib/models/seedly_drops.dart; change both together.
+    match /drops/{dropId} {
+      // A missing document reveals nothing, and the app reads one before
+      // paying it for the first time.
+      allow read: if resource == null || ownsExisting();
+      allow create: if ownsIncoming() && validDrop(dropId);
+      allow update: if false;
+      // Only a task's drops come back, once it is unmarked or deleted.
+      allow delete: if ownsExisting() && resource.data.source == 'task'
+        && !taskDone(resource.data.refId);
+    }
+
+    // The server stamps the start, so nobody can invent when they began.
+    match /sessions/{sessionId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming()
+        && request.resource.data.keys().hasOnly(['ownerId', 'startedAt'])
+        && request.resource.data.startedAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // The plant's phase. Rules can't add up drops, so the app checks there
+    // are enough; here the phase only climbs one step at a time.
+    match /progress/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validProgress()
+        && request.resource.data.phase == 1;
+      allow update: if isOwner(uid) && validProgress()
+        && request.resource.data.phase == resource.data.phase + 1;
+      allow delete: if false;
+    }
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
@@ -56,6 +90,53 @@ service cloud.firestore {
     function ownsProject(projectId) {
       let project = getAfter(/databases/$(database)/documents/projects/$(projectId));
       return project != null && project.data.ownerId == request.auth.uid;
+    }
+
+    // getAfter, so a task marked done in the same batch counts.
+    function taskDone(taskId) {
+      let path = /databases/$(database)/documents/tasks/$(taskId);
+      return existsAfter(path)
+        && getAfter(path).data.ownerId == request.auth.uid
+        && getAfter(path).data.done == true;
+    }
+
+    function projectComplete(projectId) {
+      let path = /databases/$(database)/documents/projects/$(projectId);
+      return existsAfter(path) && completeProject(getAfter(path).data);
+    }
+
+    function completeProject(project) {
+      return project.ownerId == request.auth.uid
+        && project.taskCount >= 3
+        && project.doneCount == project.taskCount;
+    }
+
+    // No more minutes than have passed since the server stamped the start.
+    function wateredLongEnough(sessionId, minutes) {
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return session.ownerId == request.auth.uid
+        && minutes * 60 <= (request.time - session.startedAt).seconds();
+    }
+
+    function validDrop(dropId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['ownerId', 'source', 'refId', 'amount', 'createdAt'])
+        && data.source is string && data.refId is string
+        && dropId == data.source + '_' + data.refId
+        && data.amount is int
+        && data.createdAt == request.time
+        && ((data.source == 'task' && data.amount == 3 && taskDone(data.refId))
+            || (data.source == 'project' && data.amount == 10
+                && projectComplete(data.refId))
+            || (data.source == 'watering' && data.amount >= 1 && data.amount <= 120
+                && wateredLongEnough(data.refId, data.amount)));
+    }
+
+    function validProgress() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['phase', 'updatedAt'])
+        && data.phase is int && data.phase >= 1 && data.phase <= 4
+        && data.updatedAt == request.time;
     }
 
     function validProfile() {

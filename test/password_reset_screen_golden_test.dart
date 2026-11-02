@@ -29,7 +29,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('../docs/password_reset_screen.png'),
+      matchesGoldenFile('goldens/password_reset_screen.png'),
     );
   });
 }

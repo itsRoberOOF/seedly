@@ -35,7 +35,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('../docs/login_screen.png'),
+      matchesGoldenFile('goldens/login_screen.png'),
     );
   });
 
@@ -65,7 +65,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('../docs/login_screen_390.png'),
+      matchesGoldenFile('goldens/login_screen_390.png'),
     );
   });
 }
