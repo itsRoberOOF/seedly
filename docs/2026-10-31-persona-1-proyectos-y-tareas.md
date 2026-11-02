@@ -115,3 +115,19 @@ No llamen directamente a `flutter_local_notifications` desde repositorios o
 pantallas de Persona 1. La fuente de verdad sigue siendo el documento de la
 tarea; basta con que cada escritura emita el estado completo y el coordinador
 de `SeedlyNotificationService` hará la sincronización.
+
+## Lo que Inicio ya adelantó del catálogo
+
+Para la sección «Proyectos» de Inicio (`lib/screens/seedly_inicio_view.dart`) se agregó la parte mínima de
+lectura de proyectos, con la forma que describe este documento. Amplíenla en lugar de duplicarla:
+
+- `SeedlyProject` en `lib/models/seedly_project.dart`: `id`, `name`, `kind`, `icon`, `description`,
+  `startDate`, `endDate`, `taskCount` y `doneCount`, con `remaining`, `isComplete` y `progress`. Falta la
+  foto (`photo`), que Inicio no usa.
+- `SeedlyProjectRepository.watchProjects()` y su versión de Firestore: filtra por `ownerId` y ordena en
+  Dart por `createdAt` (más nuevo primero, sin `orderBy` para no pedir otro índice compuesto).
+- `FakeSeedlyProjectRepository.projects` para tests. Sus tres streams se reproducen a cada oyente, como
+  Firestore, para que una pantalla pueda volver a escucharlos al cambiar de pestaña.
+
+Inicio muestra los proyectos sin terminar (`!isComplete`), con su avance, y las tarjetas de tarea llaman a
+`onNotificationTaskTap`, el mismo gancho del editor de tareas. No son tocables mientras ese gancho no exista.

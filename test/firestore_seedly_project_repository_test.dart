@@ -126,6 +126,65 @@ void main() {
     expect((await firestore.collection('projects').get()).docs, isEmpty);
   });
 
+  test('watchProjects reads only the owner\'s, newest first', () async {
+    Future<void> add(String id, String owner, DateTime? createdAt, int done) =>
+        firestore.collection('projects').doc(id).set({
+          'ownerId': owner,
+          'name': id,
+          'description': null,
+          'icon': 'hogar',
+          'kind': 'full',
+          'startDate': null,
+          'endDate': null,
+          'taskCount': 4,
+          'doneCount': done,
+          'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt),
+        });
+    await add('viejo', 'ana', DateTime(2026, 10, 1), 1);
+    await add('nuevo', 'ana', DateTime(2026, 11, 1), 4);
+    await add('pendiente', 'ana', null, 0);
+    await add('ajeno', 'luis', DateTime(2026, 11, 2), 0);
+
+    final list = await projects.watchProjects().first;
+
+    expect(list.map((project) => project.id), ['pendiente', 'nuevo', 'viejo']);
+    final nuevo = list[1];
+    expect(nuevo.name, 'nuevo');
+    expect(nuevo.icon, SeedlyProjectIcon.hogar);
+    expect(nuevo.kind, SeedlyProjectKind.full);
+    expect(nuevo.taskCount, 4);
+    expect(nuevo.isComplete, isTrue);
+  });
+
+  test(
+    'watchProjects falls back to the default icon it does not know',
+    () async {
+      await firestore.collection('projects').doc('raro').set({
+        'ownerId': 'ana',
+        'name': 'Raro',
+        'icon': 'de-otra-version',
+        'kind': 'express',
+        'taskCount': 0,
+        'doneCount': 0,
+      });
+
+      final list = await projects.watchProjects().first;
+
+      expect(list.single.icon, SeedlyProjectIcon.planta);
+      expect(list.single.description, isNull);
+      expect(list.single.startDate, isNull);
+    },
+  );
+
+  test('watchProjects is empty without a session', () async {
+    final signedOut = FirestoreSeedlyProjectRepository(
+      auth: FakeSeedlyAuthRepository(),
+      firestore: firestore,
+    );
+
+    expect(await signedOut.watchProjects().toList(), isEmpty);
+  });
+
   test('watchTasksOn filters by owner and uses an exclusive day end', () async {
     await firestore.collection('tasks').doc('today').set({
       'ownerId': 'ana',
