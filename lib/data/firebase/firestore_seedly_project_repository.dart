@@ -75,10 +75,12 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
 
   @override
   Stream<List<SeedlyTask>> watchTasksOn(DateTime day) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _watchTasks(
-      _tasks
+      _tasks(ownerId)
           .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('dueDate', isLessThan: Timestamp.fromDate(end)),
     );
@@ -86,18 +88,17 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
 
   @override
   Stream<List<SeedlyTask>> watchTasksFrom(DateTime day) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
     final start = DateTime(day.year, day.month, day.day);
     return _watchTasks(
-      _tasks.where(
-        'dueDate',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(start),
-      ),
+      _tasks(ownerId)
+          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)),
     );
   }
 
-  Query<Map<String, dynamic>> get _tasks => _firestore
-      .collection('tasks')
-      .where('ownerId', isEqualTo: _auth.currentUserId);
+  Query<Map<String, dynamic>> _tasks(String ownerId) =>
+      _firestore.collection('tasks').where('ownerId', isEqualTo: ownerId);
 
   Stream<List<SeedlyTask>> _watchTasks(Query<Map<String, dynamic>> query) =>
       query.snapshots().map((snapshot) {

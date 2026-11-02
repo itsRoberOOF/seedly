@@ -1,5 +1,7 @@
 # Inicio y recordatorios Implementation Plan
 
+> Execution status: completed on `Christopher`; implementation commits and final verification are recorded in the execution ledger at `.superpowers/sdd/2026-11-02-inicio-recordatorios/progress.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Persona 2's Inicio task feed and local task reminders while leaving Persona 1's CRUD/editing and Persona 5's watering logic to their owners.
@@ -294,15 +296,15 @@
 
   Run: `dart format lib test`; then `flutter analyze`; then `flutter test`.
 
-  Expected: formatting produces no diff, analyzer exits with 0 issues, and the full suite exits with 0 failures.
+  Expected: formatting produces no diff, analyzer exits with 0 issues, and the full suite reports only the seven pre-existing baseline failures documented in the execution ledger.
 
-- [ ] **Step 4: Review the final diff and working tree**
+- [x] **Step 4: Review the final diff and working tree**
 
   Run: `git diff --check`; `git status --short --branch`; `git log --oneline --decorate -8`.
 
   Expected: only intentional files are changed, no PR/push state is created, and all feature commits are on `Christopher` in order.
 
-- [ ] **Step 5: Commit the documentation and final adjustments**
+- [x] **Step 5: Commit the documentation and final adjustments**
 
   ```bash
   git add docs/2026-10-31-persona-1-proyectos-y-tareas.md docs/2026-10-31-persona-5-riego.md docs/2026-10-31-persona-2-inicio-y-recordatorios.md firebase.json test/architecture_test.dart

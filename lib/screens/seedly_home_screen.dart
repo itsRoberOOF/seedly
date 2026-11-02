@@ -64,16 +64,66 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       widget.imagePicker ?? GallerySeedlyImagePicker();
   var _active = SeedlyMenuTab.inicio;
   bool _signingOut = false;
+  late final _today = SeedlyDates.day(DateTime.now());
+  late final _todayTasks = widget.projects.watchTasksOn(_today);
+  late final _futureTasks = widget.projects.watchTasksFrom(_today);
+  SeedlyTaskReminderCoordinator? _coordinator;
 
   /// The project form being filled in, if any.
   SeedlyProjectKind? _creating;
 
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_startReminderCoordinator());
+  }
+
+  Future<void> _startReminderCoordinator() async {
+    final notifications = widget.notifications;
+    if (notifications == null || _signingOut || _coordinator != null) return;
+    await notifications.initialize(onTaskReminderTap: _onNotificationTaskTap);
+    if (!mounted || _signingOut || _coordinator != null) return;
+    final coordinator = SeedlyTaskReminderCoordinator(
+      tasks: _futureTasks,
+      notifications: notifications,
+    );
+    _coordinator = coordinator;
+    await coordinator.start();
+  }
+
+  Future<void> _stopReminderCoordinator() async {
+    final coordinator = _coordinator;
+    _coordinator = null;
+    await coordinator?.dispose();
+  }
+
+  void _onNotificationTaskTap(String taskId) {
+    if (mounted) widget.onNotificationTaskTap?.call(taskId);
+  }
+
+  @override
+  void dispose() {
+    unawaited(_stopReminderCoordinator());
+    super.dispose();
+  }
+
   Future<void> _signOut() async {
     if (_signingOut) return;
     setState(() => _signingOut = true);
+    // Mark the coordinator disposed before leaving the signed-in shell. Its
+    // subscription cancellation can finish asynchronously, but it cannot
+    // reconcile another snapshot after this point.
+    unawaited(_stopReminderCoordinator());
+    var signedOut = false;
     try {
       await widget.auth.signOut();
-      await widget.notifications?.cancelAllTaskReminders();
+      signedOut = true;
+      try {
+        await widget.notifications?.cancelAllTaskReminders();
+      } on Object {
+        // Authentication has already succeeded; notification cleanup must not
+        // strand the signed-out user on the Home screen.
+      }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
@@ -81,6 +131,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
             auth: widget.auth,
             projects: widget.projects,
             users: widget.users,
+            drops: widget.drops,
             notifications: widget.notifications,
           ),
         ),
@@ -95,7 +146,10 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
         message: error.message,
       );
     } finally {
-      if (mounted) setState(() => _signingOut = false);
+      if (mounted) {
+        setState(() => _signingOut = false);
+        if (!signedOut) unawaited(_startReminderCoordinator());
+      }
     }
   }
 
@@ -166,12 +220,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               onSignOut: _signOut,
             )
           : _active == SeedlyMenuTab.inicio
-          ? _InicioView(
-              projects: widget.projects,
-              drops: widget.drops,
-              notifications: widget.notifications,
-              onNotificationTaskTap: widget.onNotificationTaskTap,
-            )
+          ? _InicioView(todayTasks: _todayTasks, drops: widget.drops)
           : null,
       bottomNavigationBar: SeedlyMenu(
         active: _active,
@@ -194,17 +243,10 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
 /// header's 56px and the 24px gap, 14px into the "Planta" frame. The header
 /// and the rest of the screen come later.
 class _InicioView extends StatefulWidget {
-  const _InicioView({
-    required this.projects,
-    this.drops,
-    this.notifications,
-    this.onNotificationTaskTap,
-  });
+  const _InicioView({required this.todayTasks, this.drops});
 
-  final SeedlyProjectRepository projects;
+  final Stream<List<SeedlyTask>> todayTasks;
   final SeedlyDropsRepository? drops;
-  final SeedlyNotificationService? notifications;
-  final void Function(String taskId)? onNotificationTaskTap;
 
   @override
   State<_InicioView> createState() => _InicioViewState();
@@ -212,41 +254,8 @@ class _InicioView extends StatefulWidget {
 
 class _InicioViewState extends State<_InicioView> {
   late final _today = SeedlyDates.day(DateTime.now());
-  late final _todayTasks = widget.projects.watchTasksOn(_today);
-  late final _futureTasks = widget.projects.watchTasksFrom(_today);
   late final Stream<SeedlyPlantState>? _plantState = widget.drops
       ?.watchPlantState();
-  SeedlyTaskReminderCoordinator? _coordinator;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_initializeNotifications());
-  }
-
-  Future<void> _initializeNotifications() async {
-    final notifications = widget.notifications;
-    if (notifications == null) return;
-    await notifications.initialize(onTaskReminderTap: _onTaskReminderTap);
-    if (!mounted) return;
-    final coordinator = SeedlyTaskReminderCoordinator(
-      tasks: _futureTasks,
-      notifications: notifications,
-    );
-    _coordinator = coordinator;
-    await coordinator.start();
-  }
-
-  void _onTaskReminderTap(String taskId) {
-    if (mounted) widget.onNotificationTaskTap?.call(taskId);
-  }
-
-  @override
-  void dispose() {
-    final coordinator = _coordinator;
-    if (coordinator != null) unawaited(coordinator.dispose());
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +320,7 @@ class _InicioViewState extends State<_InicioView> {
           ),
           const SizedBox(height: 12),
           StreamBuilder<List<SeedlyTask>>(
-            stream: _todayTasks,
+            stream: widget.todayTasks,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return const Text('No se pudieron cargar tus tareas.');

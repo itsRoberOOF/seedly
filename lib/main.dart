@@ -73,6 +73,7 @@ class MyApp extends StatelessWidget {
       auth: auth,
       projects: projects,
       users: users,
+      drops: drops,
       notifications: notifications,
     );
     return MaterialApp(

@@ -19,7 +19,9 @@ abstract final class SeedlyTaskReminder {
       date.year,
       date.month,
       date.day,
-    ).add(Duration(minutes: dueMinutes));
+      dueMinutes ~/ Duration.minutesPerHour,
+      dueMinutes % Duration.minutesPerHour,
+    );
     final reminder = due.subtract(Duration(minutes: reminderMinutes));
     return reminder.isAfter(now) ? reminder : null;
   }
