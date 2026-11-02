@@ -86,14 +86,28 @@ class _Replay<T> {
   final _controller = StreamController<T>.broadcast();
   (T,)? _last;
 
-  Stream<T> get stream => Stream.multi((listener) {
-    final last = _last;
-    if (last != null) listener.add(last.$1);
-    final subscription = _controller.stream.listen(
-      listener.add,
-      onError: listener.addError,
-      onDone: listener.close,
+  /// A new broadcast stream each time, like Firestore's: every listener,
+  /// including one that comes after another left, starts with the last
+  /// value. (Not `Stream.multi`: under a test's fake time a closed source
+  /// never reached its listeners as done.)
+  Stream<T> get stream {
+    late final StreamController<T> out;
+    StreamSubscription<T>? subscription;
+    out = StreamController<T>.broadcast(
+      onListen: () {
+        final last = _last;
+        if (last != null) out.add(last.$1);
+        subscription = _controller.stream.listen(
+          out.add,
+          onError: out.addError,
+          onDone: out.close,
+        );
+      },
+      onCancel: () {
+        subscription?.cancel();
+        subscription = null;
+      },
     );
-    listener.onCancel = subscription.cancel;
-  });
+    return out.stream;
+  }
 }
