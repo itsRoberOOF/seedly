@@ -9,6 +9,7 @@ import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../repositories/seedly_user_repository.dart';
 import '../services/seedly_image_picker.dart';
+import '../services/seedly_notification_service.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_menu.dart';
@@ -27,6 +28,7 @@ class SeedlyHomeScreen extends StatefulWidget {
     required this.projects,
     required this.users,
     this.imagePicker,
+    this.notifications,
   });
 
   final SeedlyAuthRepository auth;
@@ -35,6 +37,9 @@ class SeedlyHomeScreen extends StatefulWidget {
 
   /// Replaced in tests so they never open the system gallery.
   final SeedlyImagePicker? imagePicker;
+
+  /// Shared native notification service; omitted in isolated widget tests.
+  final SeedlyNotificationService? notifications;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -132,6 +137,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               initialKind: creating,
               onClose: _closeForm,
               onCreated: _created,
+              onReminderSelected: widget.notifications == null
+                  ? null
+                  : _requestReminderPermission,
             )
           : _active == SeedlyMenuTab.perfil
           ? SeedlyProfileView(
@@ -153,6 +161,11 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
         onAdd: _add,
       ),
     );
+  }
+
+  Future<bool> _requestReminderPermission() async {
+    final permission = await widget.notifications!.requestReminderPermission();
+    return permission == SeedlyNotificationPermission.granted;
   }
 }
 
