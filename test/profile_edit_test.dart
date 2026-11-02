@@ -384,19 +384,19 @@ void main() {
   });
 
   group('bio length', () {
-    testWidgets('typing or pasting past 160 units is cut', (tester) async {
+    testWidgets('typing or pasting past 250 units is cut', (tester) async {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, 'a' * 170);
-      expect(_text(tester, _bioField), 'a' * 160);
+      await _type(tester, _bioField, 'a' * 260);
+      expect(_text(tester, _bioField), 'a' * 250);
 
       await _type(tester, _bioField, '');
-      await _type(tester, _bioField, '${'a' * 150}${'😀' * 10}');
-      expect(_text(tester, _bioField), '${'a' * 150}${'😀' * 5}');
+      await _type(tester, _bioField, '${'a' * 240}${'😀' * 10}');
+      expect(_text(tester, _bioField), '${'a' * 240}${'😀' * 5}');
       await _blur(tester);
 
-      expect(users.updates.single.bio!.value!.length, 160);
+      expect(users.updates.single.bio!.value!.length, 250);
     });
 
     testWidgets('typing one more character at a full field is rejected', (
@@ -405,21 +405,21 @@ void main() {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, 'a' * 160);
-      await _type(tester, _bioField, '${'a' * 160}X');
-      expect(_text(tester, _bioField), 'a' * 160);
+      await _type(tester, _bioField, 'a' * 250);
+      await _type(tester, _bioField, '${'a' * 250}X');
+      expect(_text(tester, _bioField), 'a' * 250);
     });
 
-    testWidgets('80 emojis are saved', (tester) async {
+    testWidgets('125 emojis are saved', (tester) async {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, '😀' * 81);
-      expect(_text(tester, _bioField), '😀' * 80);
+      await _type(tester, _bioField, '😀' * 126);
+      expect(_text(tester, _bioField), '😀' * 125);
       await _blur(tester);
 
       expect(users.updates, hasLength(1));
-      expect(users.updates.single.bio!.value, '😀' * 80);
+      expect(users.updates.single.bio!.value, '😀' * 125);
       expect(find.text('Bio no válida'), findsNothing);
     });
   });

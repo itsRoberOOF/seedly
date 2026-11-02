@@ -10,6 +10,7 @@ import '../services/seedly_notification_service.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
+import '../widgets/seedly_busy_overlay.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 import 'seedly_home_screen.dart';
@@ -59,6 +60,8 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
   Future<void> _signIn(Future<bool> Function() signIn) async {
     if (_busy) return;
     hideSeedlyAlert();
+    // The keyboard must not stay over the veil.
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _busy = true);
     try {
       if (!await signIn() || !mounted) return;
@@ -155,6 +158,21 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    // While signing in nothing can be touched, not even back, and a veil
+    // says so; it is lifted if signing in fails or is cancelled.
+    return PopScope(
+      canPop: !_busy,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _scaffold(textTheme),
+          if (_busy) const SeedlyBusyOverlay(label: 'Iniciando sesión…'),
+        ],
+      ),
+    );
+  }
+
+  Widget _scaffold(TextTheme textTheme) {
     return Scaffold(
       backgroundColor: SeedlyPalette.neutral[100],
       body: SafeArea(
