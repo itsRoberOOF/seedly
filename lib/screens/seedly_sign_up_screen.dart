@@ -12,6 +12,7 @@ import '../services/seedly_notification_service.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
+import '../widgets/seedly_busy_overlay.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 import 'seedly_home_screen.dart';
@@ -51,6 +52,9 @@ class _SeedlySignUpScreenState extends State<SeedlySignUpScreen> {
   final _confirm = TextEditingController();
   bool _busy = false;
 
+  /// What the veil says while [_busy].
+  var _busyLabel = 'Creando tu cuenta…';
+
   /// Off until the first failed submit; then borders clear as fields are
   /// fixed, without waiting for another submit.
   var _autovalidate = AutovalidateMode.disabled;
@@ -65,10 +69,18 @@ class _SeedlySignUpScreenState extends State<SeedlySignUpScreen> {
   }
 
   /// Runs [signUp] once at a time and opens the home when it reports success.
-  Future<void> _signUp(Future<bool> Function() signUp) async {
+  Future<void> _signUp(
+    Future<bool> Function() signUp, {
+    String label = 'Creando tu cuenta…',
+  }) async {
     if (_busy) return;
     hideSeedlyAlert();
-    setState(() => _busy = true);
+    // The keyboard must not stay over the veil.
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _busy = true;
+      _busyLabel = label;
+    });
     try {
       if (!await signUp() || !mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -141,157 +153,183 @@ class _SeedlySignUpScreenState extends State<SeedlySignUpScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return PopScope(
+      // While signing up nothing can be touched, not even back, and a veil
+      // says so; it is lifted if signing up fails or is cancelled.
+      canPop: !_busy,
       // An alert about this form must not linger over the login.
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) hideSeedlyAlert();
       },
-      child: Scaffold(
-        backgroundColor: SeedlyPalette.neutral[100],
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: math.max(0, constraints.maxHeight - 96),
-                ),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 40),
-                      Text('Crea tu cuenta', style: textTheme.displaySmall),
-                      Text(
-                        'Empieza a cultivar tu progreso.',
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: SeedlyPalette.neutral[700],
-                        ),
-                      ),
-                      const SizedBox(height: 64),
-                      Form(
-                        key: _formKey,
-                        autovalidateMode: _autovalidate,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SeedlyInput(
-                              label: 'Nombre *',
-                              hint: '',
-                              controller: _name,
-                              keyboardType: TextInputType.name,
-                              textInputAction: TextInputAction.next,
-                              textCapitalization: TextCapitalization.words,
-                              autofillHints: const [AutofillHints.name],
-                              validator: _nameError,
-                            ),
-                            const SizedBox(height: 16),
-                            SeedlyInput(
-                              label: 'Correo electrónico *',
-                              hint: 'ejemplo@correo.com',
-                              controller: _email,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              autofillHints: const [AutofillHints.email],
-                              validator: seedlyEmailError,
-                            ),
-                            const SizedBox(height: 16),
-                            SeedlyInput(
-                              label: 'Contraseña *',
-                              hint: '•••••••••••••',
-                              controller: _password,
-                              password: true,
-                              textInputAction: TextInputAction.next,
-                              autofillHints: const [AutofillHints.newPassword],
-                              validator: _passwordError,
-                            ),
-                            const SizedBox(height: 16),
-                            SeedlyInput(
-                              label: 'Confirmar contraseña *',
-                              hint: '•••••••••••••',
-                              controller: _confirm,
-                              password: true,
-                              textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.newPassword],
-                              validator: _confirmError,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                      SeedlyButton(
-                        label: 'Crear cuenta',
-                        expand: true,
-                        trailing: SvgPicture.asset(
-                          'assets/images/signup_add_user.svg',
-                          width: 24,
-                          height: 24,
-                        ),
-                        onPressed: _submit,
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Scaffold(
+            backgroundColor: SeedlyPalette.neutral[100],
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 48,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: math.max(0, constraints.maxHeight - 96),
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: Divider(color: SeedlyPalette.neutral[500]),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'o regístrate con',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: SeedlyPalette.neutral[600],
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Divider(color: SeedlyPalette.neutral[500]),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      SeedlyButton(
-                        label: 'Google',
-                        variant: SeedlyButtonVariant.outline,
-                        expand: true,
-                        leading: SvgPicture.asset(
-                          'assets/images/login_google.svg',
-                          width: 24,
-                          height: 24,
-                        ),
-                        onPressed: () => _signUp(widget.auth.signInWithGoogle),
-                      ),
-                      // Figma pins the login link to the bottom; on short
-                      // screens it still keeps some room from Google.
-                      const SizedBox(height: 32),
-                      const Spacer(),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        children: [
+                          const SizedBox(height: 40),
+                          Text('Crea tu cuenta', style: textTheme.displaySmall),
                           Text(
-                            '¿Ya tienes cuenta?',
-                            style: textTheme.bodyMedium?.copyWith(
+                            'Empieza a cultivar tu progreso.',
+                            style: textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.w500,
+                              color: SeedlyPalette.neutral[700],
                             ),
                           ),
+                          const SizedBox(height: 64),
+                          Form(
+                            key: _formKey,
+                            autovalidateMode: _autovalidate,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SeedlyInput(
+                                  label: 'Nombre *',
+                                  hint: '',
+                                  controller: _name,
+                                  keyboardType: TextInputType.name,
+                                  textInputAction: TextInputAction.next,
+                                  textCapitalization: TextCapitalization.words,
+                                  autofillHints: const [AutofillHints.name],
+                                  validator: _nameError,
+                                ),
+                                const SizedBox(height: 16),
+                                SeedlyInput(
+                                  label: 'Correo electrónico *',
+                                  hint: 'ejemplo@correo.com',
+                                  controller: _email,
+                                  keyboardType: TextInputType.emailAddress,
+                                  textInputAction: TextInputAction.next,
+                                  autofillHints: const [AutofillHints.email],
+                                  validator: seedlyEmailError,
+                                ),
+                                const SizedBox(height: 16),
+                                SeedlyInput(
+                                  label: 'Contraseña *',
+                                  hint: '•••••••••••••',
+                                  controller: _password,
+                                  password: true,
+                                  textInputAction: TextInputAction.next,
+                                  autofillHints: const [
+                                    AutofillHints.newPassword,
+                                  ],
+                                  validator: _passwordError,
+                                ),
+                                const SizedBox(height: 16),
+                                SeedlyInput(
+                                  label: 'Confirmar contraseña *',
+                                  hint: '•••••••••••••',
+                                  controller: _confirm,
+                                  password: true,
+                                  textInputAction: TextInputAction.done,
+                                  autofillHints: const [
+                                    AutofillHints.newPassword,
+                                  ],
+                                  validator: _confirmError,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 48),
                           SeedlyButton(
-                            label: 'Inicia sesión',
-                            variant: SeedlyButtonVariant.text,
-                            size: SeedlyButtonSize.medium,
-                            onPressed: () => Navigator.of(context).pop(),
+                            label: 'Crear cuenta',
+                            expand: true,
+                            trailing: SvgPicture.asset(
+                              'assets/images/signup_add_user.svg',
+                              width: 24,
+                              height: 24,
+                            ),
+                            onPressed: _submit,
+                          ),
+                          const SizedBox(height: 32),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  color: SeedlyPalette.neutral[500],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  'o regístrate con',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: SeedlyPalette.neutral[600],
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  color: SeedlyPalette.neutral[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          SeedlyButton(
+                            label: 'Google',
+                            variant: SeedlyButtonVariant.outline,
+                            expand: true,
+                            leading: SvgPicture.asset(
+                              'assets/images/login_google.svg',
+                              width: 24,
+                              height: 24,
+                            ),
+                            onPressed: () => _signUp(
+                              widget.auth.signInWithGoogle,
+                              label: 'Iniciando sesión…',
+                            ),
+                          ),
+                          // Figma pins the login link to the bottom; on short
+                          // screens it still keeps some room from Google.
+                          const SizedBox(height: 32),
+                          const Spacer(),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            children: [
+                              Text(
+                                '¿Ya tienes cuenta?',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SeedlyButton(
+                                label: 'Inicia sesión',
+                                variant: SeedlyButtonVariant.text,
+                                size: SeedlyButtonSize.medium,
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+          if (_busy) SeedlyBusyOverlay(label: _busyLabel),
+        ],
       ),
     );
   }
