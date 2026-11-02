@@ -62,11 +62,14 @@ class FirestoreSeedlyUserRepository implements SeedlyUserRepository {
   @override
   Future<SeedlyProfileSave> updateProfile(
     String uid, {
+    SeedlyField<String>? displayName,
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
     SeedlyField<Uint8List>? photo,
   }) async {
     final changes = <String, Object?>{
+      // Kept (as null when cleared) since the rules read it on every write.
+      if (displayName != null) 'displayName': displayName.value,
       if (username != null) 'username': _valueOrDelete(username.value),
       if (bio != null) 'bio': _valueOrDelete(bio.value),
       // Avatar-sized, so it fits in the document; Storage needs Blaze.

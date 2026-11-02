@@ -79,7 +79,7 @@ void main() {
     expect(find.text('robermoran28@gmail.com'), findsOneWidget);
   });
 
-  testWidgets('Usuario and Bio are editable, Nombre and Correo are not', (
+  testWidgets('Nombre, Usuario and Bio are editable, Correo is not', (
     tester,
   ) async {
     await _openProfile(tester);
@@ -90,7 +90,7 @@ void main() {
         .widgetList<EditableText>(find.byType(EditableText))
         .toList();
     expect(fields, hasLength(4));
-    expect(fields.map((field) => field.readOnly), [true, true, false, false]);
+    expect(fields.map((field) => field.readOnly), [false, true, false, false]);
   });
 
   testWidgets('fits 440x956 without scrolling', (tester) async {
@@ -217,6 +217,7 @@ void main() {
             displayName: name,
             createdAt: DateTime(2026),
           ),
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
           users: FakeSeedlyUserRepository(),
           picker: FakeSeedlyImagePicker(),
           onSignOut: () {},
@@ -275,5 +276,50 @@ void main() {
           tester.getSize(bio.at(1)).height == 86,
       isTrue,
     );
+  });
+
+  testWidgets('dragging the textarea handle resizes it within its limits', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        const SizedBox(
+          width: 360,
+          child: SingleChildScrollView(
+            child: SeedlyInput(
+              label: 'Bio',
+              hint: 'Cuéntanos sobre ti',
+              fieldHeight: 86,
+              maxFieldHeight: 200,
+              suffixAsset: 'assets/images/profile_expand.svg',
+            ),
+          ),
+        ),
+      ),
+    );
+    double height() => tester
+        .getSize(
+          find.ancestor(
+            of: find.byType(TextFormField),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is SizedBox && widget.height != null,
+            ),
+          ),
+        )
+        .height;
+    final handle = find.byKey(const ValueKey('seedly-input-resize'));
+
+    expect(height(), 86);
+    await tester.drag(handle, const Offset(0, 60));
+    await tester.pump();
+    expect(height(), closeTo(146, 20));
+
+    await tester.drag(handle, const Offset(0, 400));
+    await tester.pump();
+    expect(height(), 200);
+
+    await tester.drag(handle, const Offset(0, -400));
+    await tester.pump();
+    expect(height(), 86);
   });
 }

@@ -15,6 +15,17 @@ const seedlyBioTooLong = 'La bio admite hasta $seedlyBioMaxLength caracteres.';
 String? seedlyBioError(String bio) =>
     bio.length <= seedlyBioMaxLength ? null : seedlyBioTooLong;
 
+/// The longest display name the profile accepts.
+const seedlyNameMaxLength = 50;
+
+/// Null when [name] (already trimmed) can be the account's display name.
+String? seedlyNameError(String name) {
+  if (name.isEmpty) return 'Ingresa tu nombre';
+  return name.length <= seedlyNameMaxLength
+      ? null
+      : 'El nombre admite hasta $seedlyNameMaxLength caracteres.';
+}
+
 const seedlyUsernameMinLength = 3;
 const seedlyUsernameMaxLength = 20;
 

@@ -32,6 +32,7 @@ Future<void> _openView(
   FakeSeedlyUserRepository users, {
   SeedlyUserProfile? profile,
   VoidCallback? onSignOut,
+  FakeSeedlyAuthRepository? auth,
 }) async {
   tester.view.physicalSize = const Size(440, 956);
   tester.view.devicePixelRatio = 1;
@@ -43,6 +44,7 @@ Future<void> _openView(
       home: Scaffold(
         body: SeedlyProfileView(
           profile: profile ?? _profile(),
+          auth: auth ?? FakeSeedlyAuthRepository(isSignedIn: true),
           users: users,
           picker: FakeSeedlyImagePicker(),
           onSignOut: onSignOut ?? () {},
@@ -53,6 +55,7 @@ Future<void> _openView(
   await tester.pump();
 }
 
+Finder get _nameField => find.byType(EditableText).at(0);
 Finder get _usernameField => find.byType(EditableText).at(2);
 Finder get _bioField => find.byType(EditableText).at(3);
 
@@ -115,6 +118,58 @@ void main() {
     expect(users.updates.single.username!.value, 'rober_1');
     expect(users.updates.single.bio, isNull);
     expect(_text(tester, _usernameField), 'rober_1');
+  });
+
+  testWidgets('losing focus saves the name to Auth and the profile', (
+    tester,
+  ) async {
+    final users = FakeSeedlyUserRepository();
+    final auth = FakeSeedlyAuthRepository(isSignedIn: true);
+    await _openView(tester, users, auth: auth);
+
+    expect(_text(tester, _nameField), 'Ana');
+    await _type(tester, _nameField, '  Ana María ');
+    await _blur(tester);
+
+    expect(auth.renames, ['Ana María']);
+    expect(users.updates, hasLength(1));
+    expect(users.updates.single.displayName!.value, 'Ana María');
+    expect(users.updates.single.username, isNull);
+    expect(users.updates.single.bio, isNull);
+    expect(_text(tester, _nameField), 'Ana María');
+    expect(find.bySemanticsLabel('Iniciales de Ana María'), findsOneWidget);
+  });
+
+  testWidgets('an empty name alerts and is not saved', (tester) async {
+    final users = FakeSeedlyUserRepository();
+    final auth = FakeSeedlyAuthRepository(isSignedIn: true);
+    await _openView(tester, users, auth: auth);
+
+    await _type(tester, _nameField, '   ');
+    await _blur(tester);
+
+    expect(auth.renames, isEmpty);
+    expect(users.updates, isEmpty);
+    expect(find.text('Nombre no válido'), findsOneWidget);
+  });
+
+  testWidgets('a name Auth refuses is not saved to the profile', (
+    tester,
+  ) async {
+    final users = FakeSeedlyUserRepository();
+    final auth = FakeSeedlyAuthRepository(isSignedIn: true)
+      ..renameError = const SeedlyProfileException(
+        SeedlyProfileError.saveFailed,
+      );
+    await _openView(tester, users, auth: auth);
+
+    await _type(tester, _nameField, 'Otra');
+    await _blur(tester);
+
+    expect(auth.renames, ['Otra']);
+    expect(users.updates, isEmpty);
+    expect(find.text('No se pudo actualizar el perfil'), findsOneWidget);
+    expect(find.bySemanticsLabel('Iniciales de Ana'), findsOneWidget);
   });
 
   testWidgets('losing focus saves only the bio', (tester) async {

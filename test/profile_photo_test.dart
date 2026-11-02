@@ -44,6 +44,7 @@ Future<void> _open(
       home: Scaffold(
         body: SeedlyProfileView(
           profile: _profile(displayName: displayName),
+          auth: FakeSeedlyAuthRepository(isSignedIn: true),
           users: users,
           picker: picker,
           onSignOut: () {},

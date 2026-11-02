@@ -133,6 +133,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
           : _active == SeedlyMenuTab.perfil
           ? SeedlyProfileView(
               profile: widget.auth.currentUser,
+              auth: widget.auth,
               users: widget.users,
               picker: _picker,
               onSignOut: _signOut,

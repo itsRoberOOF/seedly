@@ -23,7 +23,21 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   String? get currentUserId => isSignedIn ? uid : null;
 
   /// The name and email [currentUser] reports while signed in.
-  final String? displayName;
+  String? displayName;
+
+  /// Every name given to [updateDisplayName].
+  final renames = <String>[];
+
+  /// Thrown by [updateDisplayName] when set.
+  SeedlyProfileException? renameError;
+
+  @override
+  Future<void> updateDisplayName(String name) async {
+    renames.add(name);
+    if (renameError != null) throw renameError!;
+    displayName = name;
+  }
+
   final String? email;
 
   @override

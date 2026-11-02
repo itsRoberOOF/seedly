@@ -18,6 +18,7 @@ abstract interface class SeedlyUserRepository {
   /// Throws [SeedlyProfileException].
   Future<SeedlyProfileSave> updateProfile(
     String uid, {
+    SeedlyField<String>? displayName,
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
     SeedlyField<Uint8List>? photo,

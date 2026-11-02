@@ -49,6 +49,7 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
   final updates =
       <
         ({
+          SeedlyField<String>? displayName,
           SeedlyField<String>? username,
           SeedlyField<String>? bio,
           SeedlyField<Uint8List>? photo,
@@ -108,12 +109,18 @@ class FakeSeedlyUserRepository implements SeedlyUserRepository {
   @override
   Future<SeedlyProfileSave> updateProfile(
     String uid, {
+    SeedlyField<String>? displayName,
     SeedlyField<String>? username,
     SeedlyField<String>? bio,
     SeedlyField<Uint8List>? photo,
   }) async {
     if (updateError != null && updateGate == null) throw updateError!;
-    updates.add((username: username, bio: bio, photo: photo));
+    updates.add((
+      displayName: displayName,
+      username: username,
+      bio: bio,
+      photo: photo,
+    ));
     await updateGate;
     if (updateError != null) throw updateError!;
     return updateResult;
