@@ -7,6 +7,8 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   FakeSeedlyProjectRepository({
     this.error,
     this.save = SeedlyProjectSave.saved,
+    this.tasksOn = const Stream.empty(),
+    this.tasksFrom = const Stream.empty(),
   });
 
   /// Thrown by [create] when set.
@@ -14,6 +16,12 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
 
   /// What [create] reports when it succeeds.
   SeedlyProjectSave save;
+
+  /// Tasks emitted by [watchTasksOn] in screen tests.
+  Stream<List<SeedlyTask>> tasksOn;
+
+  /// Tasks emitted by [watchTasksFrom] in screen tests.
+  Stream<List<SeedlyTask>> tasksFrom;
 
   final created = <NewSeedlyProject>[];
 
@@ -23,4 +31,10 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
     created.add(project);
     return save;
   }
+
+  @override
+  Stream<List<SeedlyTask>> watchTasksOn(DateTime day) => tasksOn;
+
+  @override
+  Stream<List<SeedlyTask>> watchTasksFrom(DateTime day) => tasksFrom;
 }

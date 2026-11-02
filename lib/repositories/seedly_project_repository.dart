@@ -6,4 +6,10 @@ abstract interface class SeedlyProjectRepository {
   /// Saves the project together with its initial tasks, all or nothing.
   /// Throws [SeedlyProjectException].
   Future<SeedlyProjectSave> create(NewSeedlyProject project);
+
+  /// Watches this owner's tasks whose due date is inside the local day.
+  Stream<List<SeedlyTask>> watchTasksOn(DateTime day);
+
+  /// Watches this owner's tasks due on or after the local day.
+  Stream<List<SeedlyTask>> watchTasksFrom(DateTime day);
 }

@@ -125,4 +125,102 @@ void main() {
     );
     expect((await firestore.collection('projects').get()).docs, isEmpty);
   });
+
+  test('watchTasksOn filters by owner and uses an exclusive day end', () async {
+    await firestore.collection('tasks').doc('today').set({
+      'ownerId': 'ana',
+      'projectId': 'project-1',
+      'title': 'Sembrar',
+      'done': false,
+      'order': 1,
+      'dueDate': Timestamp.fromDate(DateTime(2026, 11, 2, 8)),
+      'dueMinutes': 8 * 60,
+      'reminderMinutes': 30,
+    });
+    await firestore.collection('tasks').doc('today-first').set({
+      'ownerId': 'ana',
+      'projectId': 'project-1',
+      'title': 'Preparar',
+      'done': false,
+      'order': 0,
+      'dueDate': Timestamp.fromDate(DateTime(2026, 11, 2, 7)),
+      'dueMinutes': 7 * 60,
+      'reminderMinutes': null,
+    });
+    await firestore.collection('tasks').doc('tomorrow').set({
+      'ownerId': 'ana',
+      'projectId': 'project-1',
+      'title': 'Regar',
+      'done': false,
+      'order': 0,
+      'dueDate': Timestamp.fromDate(DateTime(2026, 11, 3)),
+      'dueMinutes': null,
+      'reminderMinutes': null,
+    });
+    await firestore.collection('tasks').doc('other-owner').set({
+      'ownerId': 'luis',
+      'projectId': 'project-2',
+      'title': 'No mostrar',
+      'done': false,
+      'order': 0,
+      'dueDate': Timestamp.fromDate(DateTime(2026, 11, 2, 9)),
+      'dueMinutes': 9 * 60,
+      'reminderMinutes': null,
+    });
+    await firestore.collection('tasks').doc('no-date').set({
+      'ownerId': 'ana',
+      'projectId': 'project-1',
+      'title': 'Sin fecha',
+      'done': false,
+      'order': 3,
+      'dueDate': null,
+      'dueMinutes': null,
+      'reminderMinutes': null,
+    });
+
+    final tasks = await projects.watchTasksOn(DateTime(2026, 11, 2)).first;
+
+    expect(tasks.map((task) => task.id), ['today-first', 'today']);
+    expect(tasks.first.dueDate, DateTime(2026, 11, 2, 7));
+  });
+
+  test(
+    'watchTasksFrom includes only owned tasks on or after the day',
+    () async {
+      await firestore.collection('tasks').doc('past').set({
+        'ownerId': 'ana',
+        'projectId': 'project-1',
+        'title': 'Pasada',
+        'done': false,
+        'order': 0,
+        'dueDate': Timestamp.fromDate(DateTime(2026, 11, 1)),
+        'dueMinutes': null,
+        'reminderMinutes': null,
+      });
+      await firestore.collection('tasks').doc('future').set({
+        'ownerId': 'ana',
+        'projectId': 'project-1',
+        'title': 'Futura',
+        'done': false,
+        'order': 0,
+        'dueDate': Timestamp.fromDate(DateTime(2026, 11, 3)),
+        'dueMinutes': 9 * 60,
+        'reminderMinutes': 30,
+      });
+      await firestore.collection('tasks').doc('other-future').set({
+        'ownerId': 'luis',
+        'projectId': 'project-2',
+        'title': 'No mostrar',
+        'done': false,
+        'order': 0,
+        'dueDate': Timestamp.fromDate(DateTime(2026, 11, 4)),
+        'dueMinutes': 9 * 60,
+        'reminderMinutes': null,
+      });
+
+      final tasks = await projects.watchTasksFrom(DateTime(2026, 11, 2)).first;
+
+      expect(tasks.map((task) => task.id), ['future']);
+    },
+  );
 }
