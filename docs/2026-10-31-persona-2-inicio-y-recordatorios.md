@@ -56,3 +56,38 @@ poder usar un fake en los tests.
 
 - Solo `lib/data/` (y `lib/main.dart`) importa Firebase; `test/architecture_test.dart` lo revisa.
 - Dependencias por constructor; fakes en `test/support/`.
+
+## Implementación aplicada en la branch `Christopher`
+
+La solución elegida es notificación local nativa detrás de
+`SeedlyNotificationService`; no se usa Firebase Cloud Messaging ni Cloud
+Functions. Las dependencias fijadas en `pubspec.yaml` son:
+
+- `flutter_local_notifications: ^22.3.3`;
+- `timezone: ^0.11.0`;
+- `flutter_timezone: ^5.1.1`.
+
+`FlutterSeedlyNotificationService` vive en
+`lib/data/notifications/flutter_seedly_notification_service.dart`. Se crea
+una sola instancia en `main()`, inicializa la zona horaria local de forma
+idempotente y se propaga por loading, login, registro y Home. El
+`SeedlyTaskReminderCoordinator` escucha `watchTasksFrom(hoy)`, conserva solo
+tareas futuras elegibles y sincroniza altas, cambios, completadas y borradas.
+La sincronización inspecciona payloads `task:<id>` y nunca usa `cancelAll()`
+para no borrar avisos de riego.
+
+En Android se declararon `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` y
+`SCHEDULE_EXACT_ALARM`, junto con los receivers de avisos programados y de
+reinicio. El servicio solicita notificaciones al seleccionar el chip de
+recordatorio en Nueva tarea/Crear proyecto; si la persona rechaza, conserva la
+tarea y muestra un aviso. Si no se concede alarma exacta, usa programación
+inexacta sin perder la tarea. iOS solicita alertas, sonido y badge al elegir
+el primer recordatorio. En web y plataformas no soportadas el servicio es
+no-op.
+
+El índice compuesto usado por Inicio está en `firestore.indexes.json`:
+`tasks` con `ownerId ASCENDING` y `dueDate ASCENDING`. La pantalla reutiliza
+`SeedlyPlant` y, cuando recibe `SeedlyDropsRepository`, muestra la fase y el
+total de gotas de Persona 4. Las tarjetas de tareas todavía no mutan estado;
+la edición/completado/borrado pertenecen a Persona 1 y ya tienen documentado
+el contrato de integración al final de su archivo.

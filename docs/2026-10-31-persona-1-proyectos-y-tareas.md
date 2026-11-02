@@ -70,3 +70,48 @@ Ver `2026-10-31-persona-4-gotas.md`. En resumen:
 - Los repositorios llegan a las pantallas por constructor, sin paquetes de inyección.
 - Para tests de pantallas, ampliar `test/support/fake_seedly_project_repository.dart`; para el repositorio,
   `fake_cloud_firestore` como en `test/firestore_seedly_project_repository_test.dart`.
+
+## Integración con Inicio y recordatorios (Persona 2)
+
+Esta sección se agrega al final para que la implementación de proyectos y
+tareas pueda continuar encima del contrato ya usado por Inicio, sin duplicar
+la lógica de notificaciones ni renombrar campos.
+
+### Contrato de lectura que ya consume Inicio
+
+`lib/models/seedly_project.dart` ahora publica el modelo Firebase-free
+`SeedlyTask`. Su id estable y estos campos deben conservarse:
+
+- `id`: id del documento de `tasks`; identifica también la notificación.
+- `projectId`, `title`, `done` y `order`.
+- `dueDate`: día de calendario local, guardado como `Timestamp` en Firestore.
+- `dueMinutes`: minutos locales desde medianoche.
+- `reminderMinutes`: solo `10`, `30` o `60`, o `null`.
+
+`FirestoreSeedlyProjectRepository` ya expone
+`watchTasksOn(DateTime day)` para Inicio y `watchTasksFrom(DateTime day)` para
+reconciliar recordatorios futuros. Las dos consultas filtran por el
+`ownerId` de la sesión; no eliminen ese filtro porque las reglas de Firestore
+no funcionan como filtros. `watchTasksOn` usa inicio inclusivo y fin exclusivo
+del día siguiente.
+
+### Eventos que debe preservar la Persona 1
+
+Al crear o editar, mantengan el mismo id de documento cuando la operación sea
+una edición y escriban los tres campos de fecha/hora con los nombres exactos.
+El coordinador observa el stream completo y automáticamente:
+
+- programa una tarea futura elegible;
+- reemplaza su aviso si cambian `dueDate`, `dueMinutes` o `reminderMinutes`;
+- cancela el aviso si la tarea se elimina, se marca `done == true` o pierde el
+  recordatorio.
+
+El payload de cada aviso es `task:<taskId>`. `SeedlyHomeScreen` expone
+`onNotificationTaskTap` para que la futura pantalla de edición abra la tarea;
+esta rama no crea ni implementa esa pantalla. Las tarjetas de Inicio son
+display-only hasta que la Persona 1 termine `setTaskDone(taskId, done)`.
+
+No llamen directamente a `flutter_local_notifications` desde repositorios o
+pantallas de Persona 1. La fuente de verdad sigue siendo el documento de la
+tarea; basta con que cada escritura emita el estado completo y el coordinador
+de `SeedlyNotificationService` hará la sincronización.
