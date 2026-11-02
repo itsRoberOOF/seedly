@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../modals/seedly_add_modal.dart';
@@ -10,6 +12,7 @@ import '../services/seedly_image_picker.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_menu.dart';
+import '../widgets/seedly_plant.dart';
 import 'seedly_create_project_view.dart';
 import 'seedly_login_screen.dart';
 import 'seedly_profile_view.dart';
@@ -138,6 +141,8 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               picker: _picker,
               onSignOut: _signOut,
             )
+          : _active == SeedlyMenuTab.inicio
+          ? const _InicioView()
           : null,
       bottomNavigationBar: SeedlyMenu(
         active: _active,
@@ -146,6 +151,32 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
           setState(() => _active = tab);
         },
         onAdd: _add,
+      ),
+    );
+  }
+}
+
+/// Figma "Inicio", for now only the plant, where Figma puts it: below the
+/// header's 56px and the 24px gap, 14px into the "Planta" frame. The header
+/// and the rest of the screen come later.
+class _InicioView extends StatelessWidget {
+  const _InicioView();
+
+  @override
+  Widget build(BuildContext context) {
+    final spacing = SeedlyMetrics.spacing;
+    // Figma's 48px top padding stands in for the status bar, as in Mi perfil.
+    final top = math.max(
+      spacing['xl']!,
+      48 - MediaQuery.paddingOf(context).top,
+    );
+    return SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(top: top + 56 + spacing['xl']! + 14),
+        child: const Center(
+          child: SizedBox(height: 303, child: SeedlyPlant(phase: 1)),
+        ),
       ),
     );
   }

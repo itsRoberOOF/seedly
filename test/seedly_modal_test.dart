@@ -9,6 +9,7 @@ import 'package:seedly/widgets/seedly_option_card.dart';
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/keep_plant_still.dart';
 
 /// A screen whose button opens [open] and records what it completes with.
 Widget _launcher(
@@ -29,6 +30,7 @@ Widget _launcher(
 );
 
 void main() {
+  keepPlantStill();
   testWidgets('base modal completes with the value it is popped with', (
     tester,
   ) async {

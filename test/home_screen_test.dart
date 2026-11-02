@@ -5,6 +5,7 @@ import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
+import 'package:seedly/widgets/seedly_plant.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
@@ -36,8 +37,75 @@ Future<FakeSeedlyAuthRepository> _openProfile(
   return auth;
 }
 
+Widget _home() => MaterialApp(
+  theme: SeedlyTheme.light,
+  home: SeedlyHomeScreen(
+    auth: FakeSeedlyAuthRepository(isSignedIn: true),
+    projects: FakeSeedlyProjectRepository(),
+    users: FakeSeedlyUserRepository(),
+  ),
+);
+
 void main() {
   tearDown(hideSeedlyAlert);
+
+  group('Inicio', () {
+    testWidgets('opens first and shows the plant at its first phase', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_home());
+
+      final plant = tester.widget<SeedlyPlant>(find.byType(SeedlyPlant));
+      expect(plant.phase, 1);
+      expect(plant.watering, isFalse);
+      expect(
+        find.bySemanticsLabel('Planta en fase 1: Semilla'),
+        findsOneWidget,
+      );
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('puts the plant where Figma does', (tester) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(_home());
+
+      // Figma: 48 top padding, 56 header, 24 gap, 14 into the Planta frame;
+      // the mascot is 303 tall and centred.
+      final rect = tester.getRect(find.byType(SeedlyPlant));
+      expect(rect.top, 48 + 56 + 24 + 14);
+      expect(rect.height, 303);
+      expect(rect.center.dx, 220);
+    });
+
+    testWidgets('only Inicio shows the plant', (tester) async {
+      await tester.pumpWidget(_home());
+
+      for (final tab in ['Proyectos', 'Riego', 'Mi perfil']) {
+        await tester.tap(find.text(tab));
+        await tester.pump();
+        expect(find.byType(SeedlyPlant), findsNothing, reason: tab);
+      }
+
+      await tester.tap(find.text('Inicio'));
+      await tester.pump();
+      expect(find.byType(SeedlyPlant), findsOneWidget);
+    });
+
+    testWidgets('with reduce motion the plant stands still', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pumpWidget(_home());
+
+      expect(find.byType(SeedlyPlant), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
 
   testWidgets('only Mi perfil shows the sign-out button', (tester) async {
     await tester.pumpWidget(
