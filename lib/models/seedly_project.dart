@@ -121,6 +121,59 @@ class NewSeedlyTask {
       'reminder: $reminderMinutes)';
 }
 
+/// A task read from Firestore. Firebase-specific timestamp conversion happens
+/// in the data layer, so screens and services only work with Dart values.
+class SeedlyTask {
+  const SeedlyTask({
+    required this.id,
+    required this.projectId,
+    required this.title,
+    required this.done,
+    required this.order,
+    this.dueDate,
+    this.dueMinutes,
+    this.reminderMinutes,
+  });
+
+  final String id;
+  final String projectId;
+  final String title;
+  final bool done;
+  final int order;
+  final DateTime? dueDate;
+  final int? dueMinutes;
+  final int? reminderMinutes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeedlyTask &&
+      other.id == id &&
+      other.projectId == projectId &&
+      other.title == title &&
+      other.done == done &&
+      other.order == order &&
+      other.dueDate == dueDate &&
+      other.dueMinutes == dueMinutes &&
+      other.reminderMinutes == reminderMinutes;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    projectId,
+    title,
+    done,
+    order,
+    dueDate,
+    dueMinutes,
+    reminderMinutes,
+  );
+
+  @override
+  String toString() =>
+      'SeedlyTask($id, $title, done: $done, due: $dueDate $dueMinutes, '
+      'reminder: $reminderMinutes)';
+}
+
 /// What the create-project form submits.
 class NewSeedlyProject {
   NewSeedlyProject({

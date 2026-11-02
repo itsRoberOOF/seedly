@@ -73,6 +73,66 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
     }
   }
 
+  @override
+  Stream<List<SeedlyTask>> watchTasksOn(DateTime day) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _watchTasks(
+      _tasks(ownerId)
+          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('dueDate', isLessThan: Timestamp.fromDate(end)),
+    );
+  }
+
+  @override
+  Stream<List<SeedlyTask>> watchTasksFrom(DateTime day) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
+    final start = DateTime(day.year, day.month, day.day);
+    return _watchTasks(
+      _tasks(ownerId)
+          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)),
+    );
+  }
+
+  Query<Map<String, dynamic>> _tasks(String ownerId) =>
+      _firestore.collection('tasks').where('ownerId', isEqualTo: ownerId);
+
+  Stream<List<SeedlyTask>> _watchTasks(Query<Map<String, dynamic>> query) =>
+      query.snapshots().map((snapshot) {
+        final tasks = [for (final doc in snapshot.docs) _taskOf(doc)];
+        tasks.sort(_compareTasks);
+        return tasks;
+      });
+
+  static SeedlyTask _taskOf(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    final dueDate = (data['dueDate'] as Timestamp?)?.toDate().toLocal();
+    return SeedlyTask(
+      id: document.id,
+      projectId: data['projectId'] as String,
+      title: data['title'] as String,
+      done: data['done'] as bool,
+      order: data['order'] as int,
+      dueDate: dueDate,
+      dueMinutes: data['dueMinutes'] as int?,
+      reminderMinutes: data['reminderMinutes'] as int?,
+    );
+  }
+
+  static int _compareTasks(SeedlyTask a, SeedlyTask b) {
+    final date = (a.dueDate ?? DateTime(0)).compareTo(b.dueDate ?? DateTime(0));
+    if (date != 0) return date;
+    final time = (a.dueMinutes ?? -1).compareTo(b.dueMinutes ?? -1);
+    if (time != 0) return time;
+    final order = a.order.compareTo(b.order);
+    return order != 0 ? order : a.id.compareTo(b.id);
+  }
+
   static Timestamp? _timestamp(DateTime? date) =>
       date == null ? null : Timestamp.fromDate(date);
 }

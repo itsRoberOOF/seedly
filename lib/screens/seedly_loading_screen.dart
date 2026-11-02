@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/seedly_auth_repository.dart';
+import '../repositories/seedly_drops_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../repositories/seedly_user_repository.dart';
+import '../services/seedly_notification_service.dart';
 import '../theme/seedly_theme.dart';
 import '../widgets/seedly_botanical_background.dart';
 import '../widgets/seedly_loader.dart';
@@ -16,7 +18,9 @@ class SeedlyLoadingScreen extends StatelessWidget {
     required this.auth,
     required this.projects,
     required this.users,
+    this.drops,
     this.startAfter,
+    this.notifications,
   });
 
   final SeedlyAuthRepository auth;
@@ -24,6 +28,8 @@ class SeedlyLoadingScreen extends StatelessWidget {
   /// Only handed on to the home and login screens.
   final SeedlyProjectRepository projects;
   final SeedlyUserRepository users;
+  final SeedlyDropsRepository? drops;
+  final SeedlyNotificationService? notifications;
 
   final Future<void>? startAfter;
 
@@ -67,11 +73,15 @@ class SeedlyLoadingScreen extends StatelessWidget {
                                       auth: auth,
                                       projects: projects,
                                       users: users,
+                                      drops: drops,
+                                      notifications: notifications,
                                     )
                                   : SeedlyLoginScreen(
                                       auth: auth,
                                       projects: projects,
                                       users: users,
+                                      drops: drops,
+                                      notifications: notifications,
                                     ),
                             ),
                           );

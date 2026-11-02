@@ -3,8 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/seedly_errors.dart';
 import '../repositories/seedly_auth_repository.dart';
+import '../repositories/seedly_drops_repository.dart';
 import '../repositories/seedly_project_repository.dart';
 import '../repositories/seedly_user_repository.dart';
+import '../services/seedly_notification_service.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_validators.dart';
 import '../widgets/seedly_alert.dart';
@@ -20,6 +22,8 @@ class SeedlyLoginScreen extends StatefulWidget {
     required this.auth,
     required this.projects,
     required this.users,
+    this.drops,
+    this.notifications,
   });
 
   final SeedlyAuthRepository auth;
@@ -27,6 +31,8 @@ class SeedlyLoginScreen extends StatefulWidget {
   /// Only handed on to the home and sign-up screens.
   final SeedlyProjectRepository projects;
   final SeedlyUserRepository users;
+  final SeedlyDropsRepository? drops;
+  final SeedlyNotificationService? notifications;
 
   @override
   State<SeedlyLoginScreen> createState() => _SeedlyLoginScreenState();
@@ -62,6 +68,8 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
             auth: widget.auth,
             projects: widget.projects,
             users: widget.users,
+            drops: widget.drops,
+            notifications: widget.notifications,
           ),
         ),
         (_) => false,
@@ -87,6 +95,8 @@ class _SeedlyLoginScreenState extends State<SeedlyLoginScreen> {
           auth: widget.auth,
           projects: widget.projects,
           users: widget.users,
+          drops: widget.drops,
+          notifications: widget.notifications,
         ),
       ),
     );

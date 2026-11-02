@@ -8,11 +8,13 @@ import 'data/firebase/firebase_seedly_auth_repository.dart';
 import 'data/firebase/firestore_seedly_drops_repository.dart';
 import 'data/firebase/firestore_seedly_project_repository.dart';
 import 'data/firebase/firestore_seedly_user_repository.dart';
+import 'data/notifications/flutter_seedly_notification_service.dart';
 import 'firebase_options.dart';
 import 'repositories/seedly_auth_repository.dart';
 import 'repositories/seedly_drops_repository.dart';
 import 'repositories/seedly_project_repository.dart';
 import 'repositories/seedly_user_repository.dart';
+import 'services/seedly_notification_service.dart';
 import 'screens/seedly_drops_debug_view.dart';
 import 'screens/seedly_loading_screen.dart';
 import 'theme/seedly_theme.dart';
@@ -32,7 +34,17 @@ Future<void> main() async {
   final auth = FirebaseSeedlyAuthRepository(users: users);
   final projects = FirestoreSeedlyProjectRepository(auth: auth);
   final drops = FirestoreSeedlyDropsRepository(auth: auth);
-  runApp(MyApp(auth: auth, projects: projects, users: users, drops: drops));
+  final notifications = FlutterSeedlyNotificationService();
+  await notifications.initialize();
+  runApp(
+    MyApp(
+      auth: auth,
+      projects: projects,
+      users: users,
+      drops: drops,
+      notifications: notifications,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -42,12 +54,14 @@ class MyApp extends StatelessWidget {
     required this.projects,
     required this.users,
     required this.drops,
+    this.notifications,
   });
 
   final SeedlyAuthRepository auth;
   final SeedlyProjectRepository projects;
   final SeedlyUserRepository users;
   final SeedlyDropsRepository drops;
+  final SeedlyNotificationService? notifications;
 
   // Local testing: --dart-define=DROPS_PANEL=true opens the drops panel
   // instead of the app. Debug builds only.
@@ -59,6 +73,8 @@ class MyApp extends StatelessWidget {
       auth: auth,
       projects: projects,
       users: users,
+      drops: drops,
+      notifications: notifications,
     );
     return MaterialApp(
       title: 'Seedly',
