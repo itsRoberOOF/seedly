@@ -22,8 +22,11 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   final FlutterLocalNotificationsPlugin _plugin;
   Future<void>? _initializing;
   bool _initialized = false;
-  bool _exactAlarmGranted = true;
+  bool _timezoneReady = false;
+  bool _notificationsGranted = false;
+  bool _exactAlarmGranted = false;
   void Function(String taskId)? _onTaskReminderTap;
+  String? _pendingTaskId;
 
   bool get _supported =>
       !kIsWeb &&
@@ -34,7 +37,10 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   @override
   Future<void> initialize({void Function(String taskId)? onTaskReminderTap}) {
     _onTaskReminderTap = onTaskReminderTap;
-    if (_initialized) return Future<void>.value();
+    if (_initialized) {
+      _deliverPendingTask();
+      return Future<void>.value();
+    }
     return _initializing ??= _initialize();
   }
 
@@ -48,8 +54,11 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
     try {
       final timezone = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timezone.identifier));
+      _timezoneReady = true;
     } on Object {
-      // tz.local remains the package default if the native lookup fails.
+      // Fail closed instead of accidentally scheduling in the package's UTC
+      // default when the device timezone cannot be identified.
+      _timezoneReady = false;
     }
 
     const settings = InitializationSettings(
@@ -75,7 +84,10 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
     if (launch?.didNotificationLaunchApp == true) {
       _deliverTaskPayload(launch?.notificationResponse?.payload);
     }
+    await _refreshNotificationPermissionState();
+    await _refreshExactAlarmState();
     _initialized = true;
+    _deliverPendingTask();
   }
 
   @override
@@ -88,26 +100,69 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
-      final granted = await android?.requestNotificationsPermission() ?? true;
-      if (!granted) return SeedlyNotificationPermission.denied;
-      _exactAlarmGranted =
-          await android?.requestExactAlarmsPermission() ?? true;
+      bool granted;
+      try {
+        granted = await android?.requestNotificationsPermission() ?? true;
+      } on Object {
+        _notificationsGranted = false;
+        try {
+          await _cancelAllTaskNotificationRequests();
+        } on Object {
+          // Permission errors must not prevent the task form from saving.
+        }
+        return SeedlyNotificationPermission.denied;
+      }
+      _notificationsGranted = granted;
+      if (!granted) {
+        try {
+          await _cancelAllTaskNotificationRequests();
+        } on Object {
+          // Permission errors must not prevent the task form from saving.
+        }
+        return SeedlyNotificationPermission.denied;
+      }
+      try {
+        await android?.requestExactAlarmsPermission();
+      } on Object {
+        // Inexact alarms remain a valid fallback when exact alarms are denied.
+      }
+      await _refreshExactAlarmState();
       return SeedlyNotificationPermission.granted;
     }
-
-    final granted = defaultTargetPlatform == TargetPlatform.iOS
-        ? await _plugin
-                  .resolvePlatformSpecificImplementation<
-                    IOSFlutterLocalNotificationsPlugin
-                  >()
-                  ?.requestPermissions(alert: true, badge: true, sound: true) ??
-              false
-        : await _plugin
-                  .resolvePlatformSpecificImplementation<
-                    MacOSFlutterLocalNotificationsPlugin
-                  >()
-                  ?.requestPermissions(alert: true, badge: true, sound: true) ??
-              false;
+    bool granted;
+    try {
+      granted = defaultTargetPlatform == TargetPlatform.iOS
+          ? await _plugin
+                    .resolvePlatformSpecificImplementation<
+                      IOSFlutterLocalNotificationsPlugin
+                    >()
+                    ?.requestPermissions(
+                      alert: true,
+                      badge: true,
+                      sound: true,
+                    ) ??
+                false
+          : await _plugin
+                    .resolvePlatformSpecificImplementation<
+                      MacOSFlutterLocalNotificationsPlugin
+                    >()
+                    ?.requestPermissions(
+                      alert: true,
+                      badge: true,
+                      sound: true,
+                    ) ??
+                false;
+    } on Object {
+      granted = false;
+    }
+    _notificationsGranted = granted;
+    if (!granted) {
+      try {
+        await _cancelAllTaskNotificationRequests();
+      } on Object {
+        // Permission errors must not prevent the task form from saving.
+      }
+    }
     return granted
         ? SeedlyNotificationPermission.granted
         : SeedlyNotificationPermission.denied;
@@ -116,7 +171,12 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   @override
   Future<void> scheduleTaskReminder(SeedlyTask task) async {
     await initialize();
-    if (!_supported) return;
+    if (!_supported || !_timezoneReady) return;
+    if (!await _refreshNotificationPermissionState()) {
+      await cancelTaskReminder(task.id);
+      return;
+    }
+    await _refreshExactAlarmState();
     final reminder = SeedlyTaskReminder.at(task, now: DateTime.now());
     if (reminder == null) {
       await cancelTaskReminder(task.id);
@@ -162,6 +222,15 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   Future<void> syncTaskReminders(Iterable<SeedlyTask> tasks) async {
     await initialize();
     if (!_supported) return;
+    if (!await _refreshNotificationPermissionState()) {
+      await _cancelAllTaskNotificationRequests();
+      return;
+    }
+    if (!_timezoneReady) {
+      await _cancelAllTaskNotificationRequests();
+      return;
+    }
+    await _refreshExactAlarmState();
     final eligible = <String, SeedlyTask>{
       for (final task in tasks)
         if (SeedlyTaskReminder.at(task, now: DateTime.now()) != null)
@@ -171,11 +240,11 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
     for (final request in pending) {
       final taskId = _taskIdFromPayload(request.payload);
       if (taskId != null && !eligible.containsKey(taskId)) {
-        await cancelTaskReminder(taskId);
+        await _plugin.cancel(id: _taskNotificationId(taskId));
       }
     }
     for (final task in eligible.values) {
-      await cancelTaskReminder(task.id);
+      await _plugin.cancel(id: _taskNotificationId(task.id));
       await scheduleTaskReminder(task);
     }
   }
@@ -184,10 +253,16 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   Future<void> cancelAllTaskReminders() async {
     await initialize();
     if (!_supported) return;
+    await _cancelAllTaskNotificationRequests();
+  }
+
+  Future<void> _cancelAllTaskNotificationRequests() async {
     final pending = await _plugin.pendingNotificationRequests();
     for (final request in pending) {
       final taskId = _taskIdFromPayload(request.payload);
-      if (taskId != null) await cancelTaskReminder(taskId);
+      if (taskId != null) {
+        await _plugin.cancel(id: _taskNotificationId(taskId));
+      }
     }
   }
 
@@ -228,7 +303,67 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
 
   void _deliverTaskPayload(String? payload) {
     final taskId = _taskIdFromPayload(payload);
-    if (taskId != null) _onTaskReminderTap?.call(taskId);
+    if (taskId == null) return;
+    if (_onTaskReminderTap case final callback?) {
+      callback(taskId);
+    } else {
+      _pendingTaskId = taskId;
+    }
+  }
+
+  void _deliverPendingTask() {
+    final taskId = _pendingTaskId;
+    final callback = _onTaskReminderTap;
+    if (taskId == null || callback == null) return;
+    _pendingTaskId = null;
+    callback(taskId);
+  }
+
+  Future<bool> _refreshNotificationPermissionState() async {
+    if (!_supported) return false;
+    try {
+      final enabled = switch (defaultTargetPlatform) {
+        TargetPlatform.android =>
+          await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.areNotificationsEnabled(),
+        TargetPlatform.iOS =>
+          (await _plugin
+                  .resolvePlatformSpecificImplementation<
+                    IOSFlutterLocalNotificationsPlugin
+                  >()
+                  ?.checkPermissions())
+              ?.isEnabled,
+        TargetPlatform.macOS =>
+          (await _plugin
+                  .resolvePlatformSpecificImplementation<
+                    MacOSFlutterLocalNotificationsPlugin
+                  >()
+                  ?.checkPermissions())
+              ?.isEnabled,
+        _ => false,
+      };
+      _notificationsGranted = enabled == true;
+    } on Object {
+      _notificationsGranted = false;
+    }
+    return _notificationsGranted;
+  }
+
+  Future<void> _refreshExactAlarmState() async {
+    if (!_supported || defaultTargetPlatform != TargetPlatform.android) return;
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    try {
+      _exactAlarmGranted =
+          await android?.canScheduleExactNotifications() ?? false;
+    } on Object {
+      _exactAlarmGranted = false;
+    }
   }
 
   static String? _taskIdFromPayload(String? payload) =>
