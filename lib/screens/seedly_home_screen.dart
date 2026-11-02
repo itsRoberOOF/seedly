@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../modals/seedly_add_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
-import '../models/seedly_drops.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_drops_repository.dart';
 import '../repositories/seedly_project_repository.dart';
@@ -18,15 +16,14 @@ import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_busy_overlay.dart';
-import '../widgets/seedly_checkbox.dart';
 import '../widgets/seedly_menu.dart';
-import '../widgets/seedly_plant.dart';
 import 'seedly_create_project_view.dart';
+import 'seedly_inicio_view.dart';
 import 'seedly_login_screen.dart';
 import 'seedly_profile_view.dart';
 
 /// Signed-in shell: the bottom menu switches the active tab. Inicio combines
-/// the task feed with the reusable plant widget; the add button's project
+/// the greeting, plant and task feed; the add button's project
 /// forms open over the current tab, menu included.
 class SeedlyHomeScreen extends StatefulWidget {
   const SeedlyHomeScreen({
@@ -53,7 +50,8 @@ class SeedlyHomeScreen extends StatefulWidget {
   /// Persona 4's plant state; omitted by isolated screens that only need UI.
   final SeedlyDropsRepository? drops;
 
-  /// Hook for Persona 1's future task editor when a reminder is tapped.
+  /// Hook for Persona 1's future task editor when a reminder or a task card
+  /// is tapped.
   final void Function(String taskId)? onNotificationTaskTap;
 
   @override
@@ -69,7 +67,6 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// Mi perfil has started leaving: saving what was typed, then signing out.
   bool _profileLeaving = false;
   late final _today = SeedlyDates.day(DateTime.now());
-  late final _todayTasks = widget.projects.watchTasksOn(_today);
   late final _futureTasks = widget.projects.watchTasksFrom(_today);
   SeedlyTaskReminderCoordinator? _coordinator;
 
@@ -242,7 +239,16 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               },
             )
           : _active == SeedlyMenuTab.inicio
-          ? _InicioView(todayTasks: _todayTasks, drops: widget.drops)
+          ? SeedlyInicioView(
+              projects: widget.projects,
+              profile: widget.auth.currentUser,
+              drops: widget.drops,
+              onTaskTap: widget.onNotificationTaskTap,
+              onWater: () => setState(() => _active = SeedlyMenuTab.riego),
+              onSeeProjects: () =>
+                  setState(() => _active = SeedlyMenuTab.proyectos),
+              onAdd: _add,
+            )
           : null,
       bottomNavigationBar: SeedlyMenu(
         active: _active,
@@ -259,125 +265,4 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     final permission = await widget.notifications!.requestReminderPermission();
     return permission == SeedlyNotificationPermission.granted;
   }
-}
-
-/// Figma "Inicio", for now only the plant, where Figma puts it: below the
-/// header's 56px and the 24px gap, 14px into the "Planta" frame. The header
-/// and the rest of the screen come later.
-class _InicioView extends StatefulWidget {
-  const _InicioView({required this.todayTasks, this.drops});
-
-  final Stream<List<SeedlyTask>> todayTasks;
-  final SeedlyDropsRepository? drops;
-
-  @override
-  State<_InicioView> createState() => _InicioViewState();
-}
-
-class _InicioViewState extends State<_InicioView> {
-  late final _today = SeedlyDates.day(DateTime.now());
-  late final Stream<SeedlyPlantState>? _plantState = widget.drops
-      ?.watchPlantState();
-
-  @override
-  Widget build(BuildContext context) {
-    final spacing = SeedlyMetrics.spacing;
-    // Figma's 48px top padding stands in for the status bar, as in Mi perfil.
-    final top = math.max(
-      spacing['xl']!,
-      48 - MediaQuery.paddingOf(context).top,
-    );
-    final plant = _plantState == null
-        ? _homeContent(
-            context,
-            top,
-            spacing,
-            const SeedlyPlantState(phase: 1, totalDrops: 0),
-          )
-        : StreamBuilder<SeedlyPlantState>(
-            stream: _plantState,
-            builder: (context, snapshot) => _homeContent(
-              context,
-              top,
-              spacing,
-              snapshot.data ?? const SeedlyPlantState(phase: 1, totalDrops: 0),
-            ),
-          );
-    return plant;
-  }
-
-  Widget _homeContent(
-    BuildContext context,
-    double top,
-    Map<String, double> spacing,
-    SeedlyPlantState plant,
-  ) => SafeArea(
-    bottom: false,
-    child: SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        top + 56 + spacing['xl']! + 14,
-        24,
-        spacing['xl']!,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: SizedBox(
-              height: 303,
-              child: SeedlyPlant(phase: plant.phase),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Gotas: ${plant.totalDrops}',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Tareas de hoy',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 12),
-          StreamBuilder<List<SeedlyTask>>(
-            stream: widget.todayTasks,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Text('No se pudieron cargar tus tareas.');
-              }
-              if (!snapshot.hasData) {
-                return const Text('Cargando tareas…');
-              }
-              final tasks = snapshot.data!
-                  .where(
-                    (task) =>
-                        task.dueDate != null &&
-                        SeedlyDates.sameDay(task.dueDate!, _today),
-                  )
-                  .toList();
-              if (tasks.isEmpty) {
-                return const Text('No tienes tareas para hoy.');
-              }
-              return Column(
-                spacing: 8,
-                children: [
-                  for (final task in tasks)
-                    SeedlyCheckboxCard(
-                      label: task.title,
-                      value: task.done,
-                      onChanged: null,
-                      time: task.dueMinutes == null
-                          ? null
-                          : SeedlyDates.time(task.dueMinutes!),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    ),
-  );
 }

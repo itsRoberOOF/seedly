@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/models/seedly_errors.dart';
+import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
+import 'package:seedly/screens/seedly_inicio_view.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
+import 'package:seedly/widgets/seedly_menu.dart';
+import 'package:seedly/widgets/seedly_plant_blob.dart';
 import 'package:seedly/widgets/seedly_plant.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
@@ -38,6 +42,10 @@ Future<FakeSeedlyAuthRepository> _openProfile(
   return auth;
 }
 
+/// A menu label; Inicio's own "Proyectos" title shares the text.
+Finder _tab(String label) =>
+    find.descendant(of: find.byType(SeedlyMenu), matching: find.text(label));
+
 Widget _home() => MaterialApp(
   theme: SeedlyTheme.light,
   home: SeedlyHomeScreen(
@@ -66,7 +74,7 @@ void main() {
       expect(tester.hasRunningAnimations, isTrue);
     });
 
-    testWidgets('puts the plant where Figma does', (tester) async {
+    testWidgets('puts the plant where Figma does, scaled down', (tester) async {
       tester.view.physicalSize = const Size(440, 956);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -74,23 +82,94 @@ void main() {
       await tester.pumpWidget(_home());
 
       // Figma: 48 top padding, 56 header, 24 gap, 14 into the Planta frame;
-      // the mascot is 303 tall and centred.
+      // the mascot is 303 tall and centred. The frame is drawn at
+      // SeedlyInicioView.plantScale, from the same top-centre point.
+      const scale = SeedlyInicioView.plantScale;
       final rect = tester.getRect(find.byType(SeedlyPlant));
-      expect(rect.top, 48 + 56 + 24 + 14);
-      expect(rect.height, 303);
+      expect(rect.top, closeTo(48 + 56 + 24 + 14 * scale, 0.01));
+      expect(rect.height, closeTo(303 * scale, 0.01));
       expect(rect.center.dx, 220);
+    });
+
+    testWidgets('without a focus task the button keeps a single 24px gap', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(_home());
+      await tester.pump();
+
+      final plant = tester.getRect(find.byType(SeedlyPlantBlob));
+      final button = tester.getRect(find.text('Regar por 25 minutos'));
+      // The button's text is centred in its 60px, so measure from the card.
+      final card = tester.getRect(
+        find.ancestor(
+          of: find.text('Regar por 25 minutos'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(card.top - plant.bottom, 24);
+      expect(card.height, 60);
+      expect(button.center.dy, card.center.dy);
+    });
+
+    testWidgets('the first project fits above the menu on a phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(440, 956);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: SeedlyTheme.light,
+          home: SeedlyHomeScreen(
+            auth: FakeSeedlyAuthRepository(isSignedIn: true),
+            users: FakeSeedlyUserRepository(),
+            projects: FakeSeedlyProjectRepository(
+              projects: Stream.value([
+                const SeedlyProject(
+                  id: 'huerto',
+                  name: 'Huerto',
+                  kind: SeedlyProjectKind.full,
+                  icon: SeedlyProjectIcon.hogar,
+                  taskCount: 4,
+                  doneCount: 1,
+                ),
+              ]),
+              tasksOn: Stream.value([
+                SeedlyTask(
+                  id: 'sembrar',
+                  projectId: 'huerto',
+                  title: 'Sembrar',
+                  done: false,
+                  order: 0,
+                  dueDate: DateTime.now(),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final card = tester.getRect(find.text('Huerto'));
+      final menu = tester.getRect(find.byType(SeedlyMenu));
+      expect(card.bottom, lessThan(menu.top));
     });
 
     testWidgets('only Inicio shows the plant', (tester) async {
       await tester.pumpWidget(_home());
 
       for (final tab in ['Proyectos', 'Riego', 'Mi perfil']) {
-        await tester.tap(find.text(tab));
+        await tester.tap(_tab(tab));
         await tester.pump();
         expect(find.byType(SeedlyPlant), findsNothing, reason: tab);
       }
 
-      await tester.tap(find.text('Inicio'));
+      await tester.tap(_tab('Inicio'));
       await tester.pump();
       expect(find.byType(SeedlyPlant), findsOneWidget);
     });
@@ -121,7 +200,7 @@ void main() {
     );
     expect(find.text('Cerrar sesión'), findsNothing);
 
-    await tester.tap(find.text('Proyectos'));
+    await tester.tap(_tab('Proyectos'));
     await tester.pump();
     expect(find.text('Cerrar sesión'), findsNothing);
 

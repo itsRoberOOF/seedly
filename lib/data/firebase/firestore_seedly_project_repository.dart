@@ -74,6 +74,35 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
   }
 
   @override
+  Stream<List<SeedlyProject>> watchProjects() {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
+    return _firestore
+        .collection('projects')
+        .where('ownerId', isEqualTo: ownerId)
+        .snapshots()
+        .map((snapshot) {
+          // No orderBy: it would need a composite index with ownerId. A
+          // project still waiting for its server time is the newest.
+          final entries = [
+            for (final doc in snapshot.docs)
+              (
+                project: _projectOf(doc),
+                createdAt: (doc.data()['createdAt'] as Timestamp?)?.toDate(),
+              ),
+          ];
+          entries.sort((a, b) {
+            final (x, y) = (a.createdAt, b.createdAt);
+            if (x == null || y == null) {
+              return x == y ? 0 : (x == null ? -1 : 1);
+            }
+            return y.compareTo(x);
+          });
+          return [for (final entry in entries) entry.project];
+        });
+  }
+
+  @override
   Stream<List<SeedlyTask>> watchTasksOn(DateTime day) {
     final ownerId = _auth.currentUserId;
     if (ownerId == null) return const Stream.empty();
@@ -106,6 +135,26 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
         tasks.sort(_compareTasks);
         return tasks;
       });
+
+  static SeedlyProject _projectOf(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    return SeedlyProject(
+      id: document.id,
+      name: data['name'] as String,
+      kind: SeedlyProjectKind.values.byName(data['kind'] as String),
+      // An icon this version does not know falls back to the default.
+      icon:
+          SeedlyProjectIcon.values.asNameMap()[data['icon']] ??
+          SeedlyProjectIcon.planta,
+      description: data['description'] as String?,
+      startDate: (data['startDate'] as Timestamp?)?.toDate().toLocal(),
+      endDate: (data['endDate'] as Timestamp?)?.toDate().toLocal(),
+      taskCount: data['taskCount'] as int,
+      doneCount: data['doneCount'] as int,
+    );
+  }
 
   static SeedlyTask _taskOf(
     QueryDocumentSnapshot<Map<String, dynamic>> document,

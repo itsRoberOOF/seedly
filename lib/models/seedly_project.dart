@@ -174,6 +174,70 @@ class SeedlyTask {
       'reminder: $reminderMinutes)';
 }
 
+/// A project read from Firestore, with the progress counters that keep the
+/// project list from reading every task.
+class SeedlyProject {
+  const SeedlyProject({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.icon,
+    required this.taskCount,
+    required this.doneCount,
+    this.description,
+    this.startDate,
+    this.endDate,
+  });
+
+  final String id;
+  final String name;
+  final SeedlyProjectKind kind;
+  final SeedlyProjectIcon icon;
+  final String? description;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final int taskCount;
+  final int doneCount;
+
+  /// Tasks still to do.
+  int get remaining => taskCount - doneCount;
+
+  /// Every task done; a project with no tasks is not complete.
+  bool get isComplete => taskCount > 0 && doneCount >= taskCount;
+
+  /// How far along, from 0 to 1.
+  double get progress => taskCount == 0 ? 0 : doneCount / taskCount;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeedlyProject &&
+      other.id == id &&
+      other.name == name &&
+      other.kind == kind &&
+      other.icon == icon &&
+      other.description == description &&
+      other.startDate == startDate &&
+      other.endDate == endDate &&
+      other.taskCount == taskCount &&
+      other.doneCount == doneCount;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    kind,
+    icon,
+    description,
+    startDate,
+    endDate,
+    taskCount,
+    doneCount,
+  );
+
+  @override
+  String toString() => 'SeedlyProject($id, $name, $doneCount/$taskCount done)';
+}
+
 /// What the create-project form submits.
 class NewSeedlyProject {
   NewSeedlyProject({

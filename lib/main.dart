@@ -81,7 +81,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: SeedlyTheme.light,
       home: _dropsPanel
-          ? SeedlyDropsDebugView(auth: auth, drops: drops, app: app)
+          ? SeedlyDropsDebugView(
+              auth: auth,
+              drops: drops,
+              projects: projects,
+              app: app,
+            )
           : app,
     );
   }

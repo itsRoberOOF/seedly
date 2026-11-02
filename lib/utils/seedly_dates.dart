@@ -40,6 +40,19 @@ abstract final class SeedlyDates {
       ? '${minutes ~/ 60} ${minutes == 60 ? 'hora' : 'horas'} antes'
       : '$minutes min antes';
 
+  /// "Hoy • 10:00 AM", "Mañana" or "12 abr 2026 • 9:00 AM": when a task is
+  /// due, counted from [today]. The time is left out when there is none.
+  static String due(DateTime date, int? minutes, DateTime today) {
+    final day0 = day(date);
+    final today0 = day(today);
+    final label = sameDay(day0, today0)
+        ? 'Hoy'
+        : sameDay(day0, today0.add(const Duration(days: 1)))
+        ? 'Mañana'
+        : short(day0);
+    return minutes == null ? label : '$label • ${time(minutes)}';
+  }
+
   /// The quick-date tags offered with a calendar. "Esta semana" is this
   /// week's Saturday, the last column of the Sunday-first grid.
   static List<(String, DateTime)> quickDates(DateTime today) {
