@@ -34,6 +34,10 @@ abstract interface class SeedlyAuthRepository {
   /// Throws [SeedlyAuthException].
   Future<bool> signInWithGoogle();
 
+  /// Changes the signed-in account's display name, which every sign-in
+  /// copies into the stored profile. Throws [SeedlyProfileException].
+  Future<void> updateDisplayName(String name);
+
   /// Throws [SeedlyAuthException].
   Future<void> signOut();
 }

@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../modals/seedly_photo_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_user_profile.dart';
+import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_user_repository.dart';
 import '../services/seedly_image_picker.dart';
 import '../theme/seedly_theme.dart';
@@ -18,22 +19,25 @@ import '../widgets/seedly_avatar.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_input.dart';
 
-/// Figma "Perfil - Información": the Mi perfil tab. Name and email come from
-/// the signed-in [profile] and can't be edited here. Usuario and Bio are
-/// saved to [users] on their own as each one loses focus (or, for Usuario,
-/// on the keyboard's action key), only when changed and valid, since Figma has
-/// no save button. The page scrolls only when it does not fit, such as on
+/// Figma "Perfil - Información": the Mi perfil tab. The email comes from the
+/// signed-in [profile] and can't be edited here. Nombre, Usuario and Bio are
+/// saved on their own as each one loses focus (or, for Nombre and Usuario, on
+/// the keyboard's action key), only when changed and valid, since Figma has
+/// no save button. Nombre goes to [auth] first, since each sign-in copies the
+/// account's name into the stored profile, and then to [users]. The page scrolls only when it does not fit, such as on
 /// small phones or with the keyboard open.
 class SeedlyProfileView extends StatefulWidget {
   const SeedlyProfileView({
     super.key,
     required this.profile,
+    required this.auth,
     required this.users,
     required this.picker,
     required this.onSignOut,
   });
 
   final SeedlyUserProfile? profile;
+  final SeedlyAuthRepository auth;
   final SeedlyUserRepository users;
 
   /// Where the avatar's edit button gets a photo from.
@@ -46,13 +50,16 @@ class SeedlyProfileView extends StatefulWidget {
 
 class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
   final _username = TextEditingController();
   final _bio = TextEditingController();
+  final _nameFocus = FocusNode();
   final _usernameFocus = FocusNode();
   final _bioFocus = FocusNode();
   var _autovalidate = AutovalidateMode.disabled;
 
   /// What is saved, as shown in the fields ('' when empty).
+  var _savedName = '';
   var _savedUsername = '';
   var _savedBio = '';
 
@@ -85,8 +92,14 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   @override
   void initState() {
     super.initState();
+    _savedName = widget.profile?.displayName?.trim() ?? '';
+    _name.text = _savedName;
+    _name.addListener(() => _leaveWarned = false);
     _username.addListener(() => _leaveWarned = false);
     _bio.addListener(() => _leaveWarned = false);
+    _nameFocus.addListener(() {
+      if (!_nameFocus.hasFocus) _save(name: true);
+    });
     _usernameFocus.addListener(() {
       if (!_usernameFocus.hasFocus) _save(username: true);
     });
@@ -124,11 +137,24 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   }
 
   @override
+  void didUpdateWidget(SeedlyProfileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final name = widget.profile?.displayName?.trim() ?? '';
+    if (name != (oldWidget.profile?.displayName?.trim() ?? '') &&
+        name.isNotEmpty) {
+      _savedName = name;
+      if (!_nameFocus.hasFocus) _name.text = name;
+    }
+  }
+
+  @override
   void dispose() {
     _retry?.cancel();
     _subscription?.cancel();
     // Leaving the tab with a field still focused: keep what was typed.
-    _save(username: true, bio: true, silent: true);
+    _save(name: true, username: true, bio: true, silent: true);
+    _nameFocus.dispose();
+    _name.dispose();
     _usernameFocus.dispose();
     _bioFocus.dispose();
     _username.dispose();
@@ -138,10 +164,15 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
 
   void _onStored(SeedlyUserProfile? stored) {
     _failedReads = 0;
+    final storedName = stored?.displayName?.trim() ?? '';
+    if (storedName.isNotEmpty) _savedName = storedName;
     _savedUsername = stored?.username ?? '';
     _savedBio = stored?.bio ?? '';
     if (mounted) setState(() => _photo = stored?.photo);
     // Never replace what the person is typing.
+    if (!_nameFocus.hasFocus && _name.text != _savedName) {
+      _name.text = _savedName;
+    }
     if (!_usernameFocus.hasFocus && _username.text != _savedUsername) {
       _username.text = _savedUsername;
     }
@@ -149,6 +180,9 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       _bio.text = _savedBio;
     }
   }
+
+  static String? _nameValidator(String? value) =>
+      seedlyNameError(value?.trim() ?? '');
 
   static String? _usernameValidator(String? value) =>
       seedlyUsernameError(seedlyNormalizeUsername(value ?? ''));
@@ -158,56 +192,83 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   /// with false when something that had to be saved was not, after telling
   /// the person why.
   Future<bool> _save({
+    bool name = false,
     bool username = false,
     bool bio = false,
     bool silent = false,
   }) {
-    final saving = _saveFields(username: username, bio: bio, silent: silent);
+    final saving = _saveFields(
+      name: name,
+      username: username,
+      bio: bio,
+      silent: silent,
+    );
     _saving.add(saving);
     return saving.whenComplete(() => _saving.remove(saving));
   }
 
   Future<bool> _saveFields({
+    required bool name,
     required bool username,
     required bool bio,
     required bool silent,
   }) async {
     final uid = widget.profile?.uid;
     if (uid == null) return true;
+    final newName = _name.text.trim();
     final newUsername = seedlyNormalizeUsername(_username.text);
     final newBio = _bio.text.trim();
+    final nameError = name ? _nameValidator(newName) : null;
     final usernameError = username ? _usernameValidator(_username.text) : null;
     final bioError = bio ? seedlyBioError(newBio) : null;
-    if (usernameError != null || bioError != null) {
+    if (nameError != null || usernameError != null || bioError != null) {
       if (silent || !mounted) return false;
       // Turns the border red; the message goes in an alert, as in the forms.
       setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
       _formKey.currentState?.validate();
-      _lastSaveError = usernameError ?? bioError!;
+      _lastSaveError = nameError ?? usernameError ?? bioError!;
       showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
-        title: usernameError != null ? 'Usuario no válido' : 'Bio no válida',
+        title: nameError != null
+            ? 'Nombre no válido'
+            : usernameError != null
+            ? 'Usuario no válido'
+            : 'Bio no válida',
         message: _lastSaveError,
       );
       return false;
     }
+    final changeName = name && newName != _savedName;
     final changeUsername = username && newUsername != _savedUsername;
     final changeBio = bio && newBio != _savedBio;
     // Show the stored form back (no "@", lowercase, trimmed).
+    if (!silent && name && _name.text != newName) _name.text = newName;
     if (!silent && username && _username.text != newUsername) {
       _username.text = newUsername;
     }
-    if (!changeUsername && !changeBio) return true;
+    if (!changeName && !changeUsername && !changeBio) return true;
     final users = widget.users;
     // Counted as saved right away so the focus loss that follows a keyboard
     // submit doesn't save it twice; undone if the save fails.
-    final (previousUsername, previousBio) = (_savedUsername, _savedBio);
+    final (previousName, previousUsername, previousBio) = (
+      _savedName,
+      _savedUsername,
+      _savedBio,
+    );
+    // The initials and labels follow the new name. A silent save runs from
+    // dispose, where the view can no longer rebuild.
+    void setName(String value) => !silent && mounted
+        ? setState(() => _savedName = value)
+        : _savedName = value;
+    if (changeName) setName(newName);
     if (changeUsername) _savedUsername = newUsername;
     if (changeBio) _savedBio = newBio;
     try {
+      if (changeName) await widget.auth.updateDisplayName(newName);
       final result = await users.updateProfile(
         uid,
+        displayName: changeName ? SeedlyField(newName) : null,
         username: changeUsername
             ? SeedlyField(newUsername.isEmpty ? null : newUsername)
             : null,
@@ -217,6 +278,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       if (!silent && mounted) _showSaved(result);
       return true;
     } on SeedlyProfileException catch (error) {
+      if (changeName) setName(previousName);
       if (changeUsername) _savedUsername = previousUsername;
       if (changeBio) _savedBio = previousBio;
       if (!silent && mounted) _showFailed(error);
@@ -236,7 +298,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       FocusManager.instance.primaryFocus?.unfocus();
       // Unfocusing starts the saves of the fields that were focused; this
       // covers any other change, and then every save in flight is awaited.
-      final remaining = _save(username: true, bio: true);
+      final remaining = _save(name: true, username: true, bio: true);
       final results = await Future.wait([..._saving, remaining]);
       if (!mounted) return;
       if (results.contains(false) && !_leaveWarned) {
@@ -314,7 +376,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
 
   /// What to call the account in labels: its name, else its email.
   String get _accountName {
-    final name = widget.profile?.displayName?.trim() ?? '';
+    final name = _savedName;
     return name.isNotEmpty ? name : widget.profile?.email ?? 'tu cuenta';
   }
 
@@ -361,10 +423,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
               Center(
                 child: SeedlyAvatar(
                   icon: 'assets/images/menu_profile.svg',
-                  initials: seedlyInitials(
-                    profile?.displayName,
-                    profile?.email,
-                  ),
+                  initials: seedlyInitials(_savedName, profile?.email),
                   initialsLabel: 'Iniciales de $_accountName',
                   photo: _photo,
                   photoLabel: 'Tu foto de perfil',
@@ -376,25 +435,31 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
               SizedBox(height: spacing['2xl']),
               Text('INFORMACIÓN', style: labelStyle),
               SizedBox(height: spacing['md']),
-              SeedlyInput(
-                label: 'Nombre',
-                hint: 'Tu nombre',
-                readOnly: true,
-                initialValue: profile?.displayName,
-              ),
-              SizedBox(height: spacing['md']),
-              SeedlyInput(
-                label: 'Correo electrónico',
-                hint: 'Tu correo',
-                readOnly: true,
-                initialValue: profile?.email,
-              ),
               Form(
                 key: _formKey,
                 autovalidateMode: _autovalidate,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    SeedlyInput(
+                      label: 'Nombre',
+                      hint: 'Tu nombre',
+                      controller: _name,
+                      focusNode: _nameFocus,
+                      validator: _nameValidator,
+                      maxLength: seedlyNameMaxLength,
+                      keyboardType: TextInputType.name,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _save(name: true),
+                    ),
+                    SizedBox(height: spacing['md']),
+                    SeedlyInput(
+                      label: 'Correo electrónico',
+                      hint: 'Tu correo',
+                      readOnly: true,
+                      initialValue: profile?.email,
+                    ),
                     SizedBox(height: spacing['md']),
                     SeedlyInput(
                       label: 'Usuario',

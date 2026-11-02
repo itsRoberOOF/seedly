@@ -107,6 +107,26 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   }
 
   @override
+  Future<void> updateDisplayName(String name) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const SeedlyProfileException(SeedlyProfileError.sessionExpired);
+    }
+    try {
+      await user.updateDisplayName(name);
+      _signUpName = null;
+    } on FirebaseAuthException catch (error) {
+      throw SeedlyProfileException(
+        error.code == 'requires-recent-login' ||
+                error.code == 'user-token-expired' ||
+                error.code == 'user-not-found'
+            ? SeedlyProfileError.sessionExpired
+            : SeedlyProfileError.saveFailed,
+      );
+    }
+  }
+
+  @override
   Future<void> sendPasswordReset(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
