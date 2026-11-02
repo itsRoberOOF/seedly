@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/modals/seedly_confirm_modal.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/models/seedly_user_profile.dart';
 import 'package:seedly/screens/seedly_login_screen.dart';
@@ -15,6 +16,7 @@ import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/sign_out.dart';
 
 Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
@@ -138,11 +140,70 @@ void main() {
   ) async {
     final auth = await _openProfile(tester);
 
-    await tester.tap(find.text('Cerrar sesión'));
+    await tapSignOut(tester);
     await tester.pumpAndSettle();
 
     expect(auth.signOutCalls, 1);
     expect(find.byType(SeedlyLoginScreen), findsOneWidget);
+  });
+
+  testWidgets('Cerrar sesión asks first and does not sign out yet', (
+    tester,
+  ) async {
+    final auth = await _openProfile(tester);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(SeedlyConfirmContent), findsOneWidget);
+    expect(find.text('Cancelar'), findsOneWidget);
+    expect(auth.signOutCalls, 0);
+    expect(find.byType(SeedlyLoginScreen), findsNothing);
+  });
+
+  testWidgets('Cancelar keeps the session', (tester) async {
+    final auth = await _openProfile(tester);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Cancelar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(SeedlyConfirmContent), findsNothing);
+    expect(auth.signOutCalls, 0);
+    expect(auth.isSignedIn, isTrue);
+    expect(find.byType(SeedlyProfileView), findsOneWidget);
+  });
+
+  testWidgets('tapping outside the modal keeps the session', (tester) async {
+    final auth = await _openProfile(tester);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tapAt(const Offset(220, 20));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(SeedlyConfirmContent), findsNothing);
+    expect(auth.signOutCalls, 0);
+  });
+
+  testWidgets('a second tap on Cerrar sesión does not stack another modal', (
+    tester,
+  ) async {
+    await _openProfile(tester);
+    final button = find.widgetWithText(OutlinedButton, 'Cerrar sesión');
+
+    await tester.tap(button);
+    await tester.tap(button, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(SeedlyConfirmContent), findsOneWidget);
   });
 
   testWidgets('SeedlyButton paints its border and text with color', (

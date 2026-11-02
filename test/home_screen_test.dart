@@ -10,6 +10,7 @@ import 'package:seedly/widgets/seedly_plant.dart';
 import 'support/fake_seedly_auth_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/sign_out.dart';
 
 Future<FakeSeedlyAuthRepository> _openProfile(
   WidgetTester tester, {
@@ -131,7 +132,7 @@ void main() {
 
   testWidgets('signing out returns to the login screen', (tester) async {
     final auth = await _openProfile(tester);
-    await tester.tap(find.text('Cerrar sesión'));
+    await tapSignOut(tester);
     await tester.pumpAndSettle();
 
     expect(auth.signOutCalls, 1);
@@ -147,7 +148,7 @@ void main() {
       tester,
       signOutError: const SeedlyAuthException(SeedlyAuthError.network),
     );
-    await tester.tap(find.text('Cerrar sesión'));
+    await tapSignOut(tester);
     await tester.pumpAndSettle();
 
     final alert = tester.widget<SeedlyAlert>(find.byType(SeedlyAlert));
