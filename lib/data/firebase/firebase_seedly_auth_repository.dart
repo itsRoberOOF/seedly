@@ -20,6 +20,9 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   final GoogleSignIn _google;
   Future<void>? _googleReady;
 
+  /// The Google account being forgotten after a sign-out, if any.
+  Future<void>? _googleCleanup;
+
   /// The name typed at sign-up when Auth could not store it. Until the next
   /// sign-in [currentUser] shows it, like the profile saved in the database.
   ({String uid, String name})? _signUpName;
@@ -140,6 +143,7 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
   @override
   Future<bool> signInWithGoogle() async {
     try {
+      await _googleCleanup;
       await (_googleReady ??= _google.initialize());
       final account = await _google.authenticate();
       final credential = GoogleAuthProvider.credential(
@@ -192,12 +196,19 @@ class FirebaseSeedlyAuthRepository implements SeedlyAuthRepository {
     }
     _signUpName = null;
     // Forget the Google account too so the next Google sign-in shows the
-    // account picker. The Firebase session is already closed, so a failure
-    // here must not undo the sign-out.
+    // account picker. Off the critical path: it can take a moment (the first
+    // time it also starts Google), and the Firebase session is already
+    // closed, so nobody should wait for it to leave. A Google sign-in waits
+    // for it instead, so the picker never sees the old account.
+    _googleCleanup = _forgetGoogleAccount();
+  }
+
+  Future<void> _forgetGoogleAccount() async {
     try {
       await (_googleReady ??= _google.initialize());
       await _google.signOut();
     } on Exception catch (error) {
+      // A failure here must not undo the sign-out.
       debugPrint('Seedly Google sign-out skipped: $error');
     }
   }

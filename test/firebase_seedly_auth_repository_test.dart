@@ -64,6 +64,37 @@ class _ScriptedAuth extends Fake implements FirebaseAuth {
   Future<void> signOut() async => _current = null;
 }
 
+/// A Google whose sign-out can be held, to see who waits for it.
+class _SlowGoogle extends Fake implements GoogleSignIn {
+  final signOutGate = Completer<void>();
+  bool signOutFails = false;
+  final calls = <String>[];
+
+  @override
+  Future<void> initialize({
+    String? clientId,
+    String? serverClientId,
+    String? nonce,
+    String? hostedDomain,
+  }) async => calls.add('initialize');
+
+  @override
+  Future<void> signOut() async {
+    calls.add('signOut');
+    await signOutGate.future;
+    if (signOutFails) throw Exception('Google is down');
+    calls.add('signedOut');
+  }
+
+  @override
+  Future<GoogleSignInAccount> authenticate({
+    List<String> scopeHint = const [],
+  }) async {
+    calls.add('authenticate');
+    throw Exception('stop here');
+  }
+}
+
 class _FakeGoogle extends Fake implements GoogleSignIn {
   @override
   Future<void> initialize({
@@ -292,6 +323,82 @@ void main() {
     expect(user!.uid, 'ana');
     expect(user.email, 'ana@seedly.app');
     expect(user.displayName, 'Ana');
+  });
+
+  group('forgetting the Google account on sign-out', () {
+    late _SlowGoogle google;
+
+    setUp(() {
+      google = _SlowGoogle();
+      repository = FirebaseSeedlyAuthRepository(
+        users: users,
+        auth: auth,
+        google: google,
+      );
+    });
+
+    test('signing out does not wait for Google', () async {
+      await signIn();
+
+      // Google is still busy and the sign-out is already done.
+      await repository.signOut();
+      expect(repository.isSignedIn, isFalse);
+      expect(google.signOutGate.isCompleted, isFalse);
+
+      await pumpEventQueue();
+      expect(google.calls, ['initialize', 'signOut']);
+      google.signOutGate.complete();
+    });
+
+    test('a Google sign-in waits for the account to be forgotten', () async {
+      await signIn();
+      await repository.signOut();
+
+      final attempt = repository.signInWithGoogle();
+      await pumpEventQueue();
+      expect(google.calls, isNot(contains('authenticate')));
+
+      google.signOutGate.complete();
+      await expectLater(attempt, throwsA(isA<SeedlyAuthException>()));
+      expect(google.calls, [
+        'initialize',
+        'signOut',
+        'signedOut',
+        'authenticate',
+      ]);
+    });
+
+    test('Google failing to sign out changes nothing for the person', () async {
+      final logged = <String?>[];
+      final original = debugPrint;
+      debugPrint = (message, {wrapWidth}) => logged.add(message);
+      addTearDown(() => debugPrint = original);
+      google
+        ..signOutFails = true
+        ..signOutGate.complete();
+      await signIn();
+
+      await repository.signOut();
+      await pumpEventQueue();
+
+      expect(repository.isSignedIn, isFalse);
+      expect(logged.single, startsWith('Seedly Google sign-out skipped'));
+    });
+
+    test('a failed Firebase sign-out leaves Google alone', () async {
+      await signIn();
+      whenCalling(Invocation.method(#signOut, null))
+          .on(auth)
+          .thenThrow(FirebaseAuthException(code: 'network-request-failed'));
+
+      await expectLater(
+        repository.signOut(),
+        _failsWith(SeedlyAuthError.network),
+      );
+      await pumpEventQueue();
+
+      expect(google.calls, isEmpty);
+    });
   });
 
   group('the sign-up name when Auth cannot store it', () {
