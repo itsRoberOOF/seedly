@@ -17,6 +17,7 @@ import '../services/seedly_task_reminder_coordinator.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
+import '../widgets/seedly_busy_overlay.dart';
 import '../widgets/seedly_checkbox.dart';
 import '../widgets/seedly_menu.dart';
 import '../widgets/seedly_plant.dart';
@@ -64,6 +65,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       widget.imagePicker ?? GallerySeedlyImagePicker();
   var _active = SeedlyMenuTab.inicio;
   bool _signingOut = false;
+
+  /// Mi perfil has started leaving: saving what was typed, then signing out.
+  bool _profileLeaving = false;
   late final _today = SeedlyDates.day(DateTime.now());
   late final _todayTasks = widget.projects.watchTasksOn(_today);
   late final _futureTasks = widget.projects.watchTasksFrom(_today);
@@ -193,8 +197,23 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final creating = _creating;
+    final leaving = _signingOut || _profileLeaving;
     // An open form handles the system back button itself, closing before
-    // the app does.
+    // the app does. While leaving, nothing may be touched: not the screen,
+    // not the menu, not back.
+    return PopScope(
+      canPop: !leaving,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _scaffold(creating),
+          if (leaving) const SeedlyBusyOverlay(label: 'Cerrando sesión…'),
+        ],
+      ),
+    );
+  }
+
+  Widget _scaffold(SeedlyProjectKind? creating) {
     return Scaffold(
       backgroundColor: SeedlyPalette.neutral[100],
       body: creating != null
@@ -218,6 +237,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               users: widget.users,
               picker: _picker,
               onSignOut: _signOut,
+              onLeavingChanged: (leaving) {
+                if (mounted) setState(() => _profileLeaving = leaving);
+              },
             )
           : _active == SeedlyMenuTab.inicio
           ? _InicioView(todayTasks: _todayTasks, drops: widget.drops)

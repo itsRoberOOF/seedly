@@ -11,6 +11,7 @@ import 'support/fake_seedly_drops_repository.dart';
 import 'support/fake_seedly_notification_service.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
+import 'support/sign_out.dart';
 
 SeedlyTask task(String id, DateTime dueDate) => SeedlyTask(
   id: id,
@@ -98,7 +99,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Mi perfil'));
     await tester.pump();
     await tester.ensureVisible(find.text('Cerrar sesión'));
-    await tester.tap(find.text('Cerrar sesión'));
+    await tapSignOut(tester);
     await tester.pumpAndSettle();
 
     expect(notifications.cancelAllCalls, 1);
@@ -118,7 +119,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Mi perfil'));
     await tester.pump();
     await tester.ensureVisible(find.text('Cerrar sesión'));
-    await tester.tap(find.text('Cerrar sesión'));
+    await tapSignOut(tester);
     await tester.pumpAndSettle();
 
     expect(notifications.cancelAllCalls, 0);
