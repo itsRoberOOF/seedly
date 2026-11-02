@@ -34,6 +34,7 @@ class SeedlyCreateProjectView extends StatefulWidget {
     this.initialKind = SeedlyProjectKind.full,
     this.today,
     this.imagePicker,
+    this.onReminderSelected,
   });
 
   final SeedlyProjectRepository projects;
@@ -50,6 +51,9 @@ class SeedlyCreateProjectView extends StatefulWidget {
 
   /// Defaults to the current day; tests pin it.
   final DateTime? today;
+
+  /// Passed to each embedded task form when notifications are available.
+  final Future<bool> Function()? onReminderSelected;
 
   @override
   State<SeedlyCreateProjectView> createState() =>
@@ -266,6 +270,7 @@ class _SeedlyCreateProjectViewState extends State<SeedlyCreateProjectView> {
               today: widget.today,
               onClose: _closeTaskEditor,
               onSave: _saveTask,
+              onReminderSelected: widget.onReminderSelected,
             ),
     );
   }

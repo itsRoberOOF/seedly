@@ -27,6 +27,7 @@ class SeedlyCreateTaskView extends StatefulWidget {
     this.projectPhoto,
     this.initial,
     this.today,
+    this.onReminderSelected,
   });
 
   final String projectName;
@@ -35,6 +36,10 @@ class SeedlyCreateTaskView extends StatefulWidget {
   final NewSeedlyTask? initial;
   final VoidCallback onClose;
   final ValueChanged<NewSeedlyTask> onSave;
+
+  /// Requests native notification permission after a reminder is selected.
+  /// The task remains selected when permission is denied.
+  final Future<bool> Function()? onReminderSelected;
 
   /// Defaults to the current day; tests pin it.
   final DateTime? today;
@@ -84,6 +89,22 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
   Future<void> _pickTime() async {
     final minutes = await showSeedlyTimeModal(context, initial: _dueMinutes);
     if (minutes != null && mounted) setState(() => _dueMinutes = minutes);
+  }
+
+  Future<void> _selectReminder(int minutes) async {
+    final removing = _reminder == minutes;
+    setState(() => _reminder = removing ? null : minutes);
+    if (removing || widget.onReminderSelected == null) return;
+    final granted = await widget.onReminderSelected!();
+    if (!mounted || granted) return;
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.warning,
+      title: 'Notificaciones desactivadas',
+      message:
+          'La tarea se guardará, pero no recibirá el recordatorio hasta '
+          'permitir las notificaciones.',
+    );
   }
 
   void _save() {
@@ -358,9 +379,7 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
           SeedlyInputTag(
             label: SeedlyDates.reminder(minutes),
             selected: _reminder == minutes,
-            onTap: () => setState(
-              () => _reminder = _reminder == minutes ? null : minutes,
-            ),
+            onTap: () => _selectReminder(minutes),
           ),
       ],
     ),
