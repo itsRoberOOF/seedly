@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/main.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+import 'support/fake_seedly_drops_repository.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
 
@@ -30,13 +31,14 @@ void main() {
         auth: FakeSeedlyAuthRepository(),
         projects: FakeSeedlyProjectRepository(),
         users: FakeSeedlyUserRepository(),
+        drops: FakeSeedlyDropsRepository(),
       ),
     );
     await tester.pump();
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('../docs/initial_screen.png'),
+      matchesGoldenFile('goldens/initial_screen.png'),
     );
   });
 }
