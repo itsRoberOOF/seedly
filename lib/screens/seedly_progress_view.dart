@@ -184,55 +184,58 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
     ),
   );
 
-  Widget _layout(List<Widget> children, {required bool readError}) => SafeArea(
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = _layoutScale;
-        // Header sits at Figma's 48px top, matching Proyectos and Riego,
-        // instead of scaling up the gap on narrow screens.
-        final top = math.max(24.0, 48 - MediaQuery.paddingOf(context).top);
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  32 * scale,
-                  top,
-                  32 * scale,
-                  16 * scale,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (readError)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Sin conexión. Se muestra el último progreso.',
+  Widget _layout(List<Widget> children, {required bool readError}) {
+    // Measured above the SafeArea, where the status bar is still the real
+    // inset, so the header lands at the same height as Detalle de proyecto and
+    // Riego. Inside the SafeArea the inset reads 0 and the header sinks.
+    final top = math.max(24.0, 48 - MediaQuery.paddingOf(context).top);
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = _layoutScale;
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    32 * scale,
+                    top,
+                    32 * scale,
+                    16 * scale,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (readError)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Sin conexión. Se muestra el último progreso.',
+                                ),
                               ),
-                            ),
-                            TextButton(
-                              onPressed: _retry,
-                              child: const Text('Reintentar'),
-                            ),
-                          ],
+                              TextButton(
+                                onPressed: _retry,
+                                child: const Text('Reintentar'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ...children,
-                  ],
+                      ...children,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
+          );
+        },
+      ),
+    );
+  }
 
   List<Widget> _progress(SeedlyPlantState plant) {
     final goal = plant.nextGoal!;
