@@ -10,12 +10,17 @@ class SeedlySegmentedControl<T> extends StatelessWidget {
     required this.options,
     required this.selected,
     required this.onChanged,
+    this.dense = false,
   });
 
   /// Values in display order, each with its label.
   final List<(T, String)> options;
   final T selected;
   final ValueChanged<T> onChanged;
+
+  /// The smaller Figma variant used over task lists: 14px text and 6px of
+  /// padding instead of 16px and 8px.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -42,13 +47,13 @@ class SeedlySegmentedControl<T> extends StatelessWidget {
                     borderRadius: pill,
                     onTap: value == selected ? null : () => onChanged(value),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.symmetric(vertical: dense ? 6 : 8),
                       child: Text(
                         label,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 16,
-                          height: 24 / 16,
+                          fontSize: dense ? 14 : 16,
+                          height: dense ? 20 / 14 : 24 / 16,
                           fontWeight: FontWeight.w500,
                           color: value == selected
                               ? SeedlyPalette.neutral[50]

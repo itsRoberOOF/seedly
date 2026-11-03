@@ -27,6 +27,25 @@ abstract final class SeedlyDates {
       '${date.day} ${months[date.month - 1].substring(0, 3).toLowerCase()} '
       '${date.year}';
 
+  static const _shortMonths = [
+    'ene',
+    'feb',
+    'mzo',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
+
+  /// "2 mzo": the day and the abbreviated month, as the project card shows.
+  static String dayMonth(DateTime date) =>
+      '${date.day} ${_shortMonths[date.month - 1]}';
+
   /// "9:00 AM" for [minutes] after midnight.
   static String time(int minutes) {
     final hour = minutes ~/ 60;

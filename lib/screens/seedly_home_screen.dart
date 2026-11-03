@@ -17,10 +17,12 @@ import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_busy_overlay.dart';
 import '../widgets/seedly_menu.dart';
+import 'seedly_add_task_view.dart';
 import 'seedly_create_project_view.dart';
 import 'seedly_inicio_view.dart';
 import 'seedly_login_screen.dart';
 import 'seedly_profile_view.dart';
+import 'seedly_projects_view.dart';
 
 /// Signed-in shell: the bottom menu switches the active tab. Inicio combines
 /// the greeting, plant and task feed; the add button's project
@@ -73,6 +75,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// The project form being filled in, if any.
   SeedlyProjectKind? _creating;
 
+  /// Whether "Crear tarea" (a task for an existing project) is open.
+  bool _addingTask = false;
+
   @override
   void initState() {
     super.initState();
@@ -82,7 +87,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   Future<void> _startReminderCoordinator() async {
     final notifications = widget.notifications;
     if (notifications == null || _signingOut || _coordinator != null) return;
-    await notifications.initialize(onTaskReminderTap: _onNotificationTaskTap);
+    await notifications.initialize(onTaskReminderTap: _onTaskTap);
     if (!mounted || _signingOut || _coordinator != null) return;
     final coordinator = SeedlyTaskReminderCoordinator(
       tasks: _futureTasks,
@@ -98,8 +103,42 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     await coordinator?.dispose();
   }
 
-  void _onNotificationTaskTap(String taskId) {
-    if (mounted) widget.onNotificationTaskTap?.call(taskId);
+  /// A tapped task or reminder opens its project's detail.
+  Future<void> _onTaskTap(String taskId) async {
+    if (!mounted) return;
+    widget.onNotificationTaskTap?.call(taskId);
+    // Inicio and reminders only list tasks from today on, so it is here.
+    try {
+      // Its own query: the reminder coordinator already listens to
+      // [_futureTasks], and a second listener on that stream would wait for
+      // the next change.
+      final tasks = await widget.projects.watchTasksFrom(_today).first;
+      for (final task in tasks) {
+        if (task.id == taskId && mounted) {
+          _openProject(task.projectId);
+          return;
+        }
+      }
+    } on Object {
+      // The task list isn't available; stay where we are.
+    }
+  }
+
+  /// The project whose detail the Proyectos tab should open, set by a tap on
+  /// a task or a project of Inicio, or on a reminder. [_openRequest]
+  /// remounts the tab so a new request always opens.
+  String? _projectToOpen;
+  var _openRequest = 0;
+
+  void _openProject(String projectId) {
+    hideSeedlyAlert();
+    setState(() {
+      _creating = null;
+      _addingTask = false;
+      _projectToOpen = projectId;
+      _openRequest++;
+      _active = SeedlyMenuTab.proyectos;
+    });
   }
 
   @override
@@ -163,17 +202,26 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       case SeedlyAddOption.expressProject:
         setState(() => _creating = SeedlyProjectKind.express);
       case SeedlyAddOption.task:
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text('${option.title} aún no disponible')),
-          );
+        setState(() => _addingTask = true);
     }
   }
 
   void _closeForm() {
     hideSeedlyAlert();
-    setState(() => _creating = null);
+    setState(() {
+      _creating = null;
+      _addingTask = false;
+    });
+  }
+
+  void _taskCreated(SeedlyProject project, NewSeedlyTask task) {
+    setState(() => _addingTask = false);
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.success,
+      title: 'Tarea creada',
+      message: '«${task.title}» ya está en «${project.name}».',
+    );
   }
 
   void _created(NewSeedlyProject project, SeedlyProjectSave save) {
@@ -227,6 +275,15 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
                   ? null
                   : _requestReminderPermission,
             )
+          : _addingTask
+          ? SeedlyAddTaskView(
+              projects: widget.projects,
+              onClose: _closeForm,
+              onCreated: _taskCreated,
+              onReminderSelected: widget.notifications == null
+                  ? null
+                  : _requestReminderPermission,
+            )
           : _active == SeedlyMenuTab.perfil
           ? SeedlyProfileView(
               profile: widget.auth.currentUser,
@@ -238,23 +295,41 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
                 if (mounted) setState(() => _profileLeaving = leaving);
               },
             )
+          : _active == SeedlyMenuTab.proyectos
+          ? SeedlyProjectsView(
+              key: ValueKey(_openRequest),
+              initialProjectId: _projectToOpen,
+              projects: widget.projects,
+              drops: widget.drops,
+              imagePicker: _picker,
+              onReminderSelected: widget.notifications == null
+                  ? null
+                  : _requestReminderPermission,
+            )
           : _active == SeedlyMenuTab.inicio
           ? SeedlyInicioView(
               projects: widget.projects,
               profile: widget.auth.currentUser,
               drops: widget.drops,
-              onTaskTap: widget.onNotificationTaskTap,
+              onTaskTap: _onTaskTap,
+              onProjectTap: _openProject,
               onWater: () => setState(() => _active = SeedlyMenuTab.riego),
-              onSeeProjects: () =>
-                  setState(() => _active = SeedlyMenuTab.proyectos),
+              onSeeProjects: () => setState(() {
+                _projectToOpen = null;
+                _active = SeedlyMenuTab.proyectos;
+              }),
               onAdd: _add,
             )
           : null,
       bottomNavigationBar: SeedlyMenu(
         active: _active,
         onSelected: (tab) {
-          if (_creating != null) _closeForm();
-          setState(() => _active = tab);
+          if (_creating != null || _addingTask) _closeForm();
+          setState(() {
+            _active = tab;
+            // Opening Proyectos from the menu starts at the catalog.
+            _projectToOpen = null;
+          });
         },
         onAdd: _add,
       ),

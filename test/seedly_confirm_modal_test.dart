@@ -78,6 +78,7 @@ void main() {
     );
     final title = tester.widget<Text>(find.text('Cerrar sesión'));
     expect(title.style!.fontSize, 28);
+    expect(title.style!.letterSpacing, 2);
     expect(title.textAlign, TextAlign.center);
     final message = tester.widget<Text>(
       find.text('¿Seguro que quieres cerrar sesión?'),

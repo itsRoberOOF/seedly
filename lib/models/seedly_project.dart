@@ -185,6 +185,7 @@ class SeedlyProject {
     required this.taskCount,
     required this.doneCount,
     this.description,
+    this.photo,
     this.startDate,
     this.endDate,
   });
@@ -194,6 +195,9 @@ class SeedlyProject {
   final SeedlyProjectKind kind;
   final SeedlyProjectIcon icon;
   final String? description;
+
+  /// A small JPEG shown instead of [icon], when the project has one.
+  final Uint8List? photo;
   final DateTime? startDate;
   final DateTime? endDate;
   final int taskCount;
@@ -271,3 +275,27 @@ class NewSeedlyProject {
 
 /// Whether the server confirmed the project or it is waiting to sync.
 enum SeedlyProjectSave { saved, pendingSync }
+
+/// What the edit-project form submits; the kind and the tasks stay as they
+/// are. Every field is written, so pass the current value for what didn't
+/// change.
+class SeedlyProjectChanges {
+  SeedlyProjectChanges({
+    required this.name,
+    this.description,
+    this.icon = SeedlyProjectIcon.planta,
+    this.photo,
+    this.startDate,
+    this.endDate,
+  }) : assert(
+         startDate == null || endDate == null || !endDate.isBefore(startDate),
+         'A project cannot end before it starts',
+       );
+
+  final String name;
+  final String? description;
+  final SeedlyProjectIcon icon;
+  final Uint8List? photo;
+  final DateTime? startDate;
+  final DateTime? endDate;
+}

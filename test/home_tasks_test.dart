@@ -7,6 +7,7 @@ import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_empty_card.dart';
+import 'package:seedly/widgets/seedly_menu.dart';
 import 'package:seedly/widgets/seedly_plant.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
@@ -484,5 +485,87 @@ void main() {
 
     expect(notifications.cancelAllCalls, 0);
     expect(find.text('No se pudo cerrar sesión'), findsOneWidget);
+  });
+
+  group('opening a project from Inicio', () {
+    FakeSeedlyProjectRepository withProject() => FakeSeedlyProjectRepository(
+      projects: Stream.value([huerto]),
+      tasksOn: Stream.value([task('Sembrar', DateTime(2026, 11, 2))]),
+      tasksFrom: Stream.value([task('Sembrar', DateTime(2026, 11, 2))]),
+      projectById: Stream.value(huerto),
+      tasksOfProject: Stream.value([task('Sembrar', DateTime(2026, 11, 2))]),
+    );
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+
+    testWidgets('a task card leads to its project detail', (tester) async {
+      final tapped = <String>[];
+      await tester.pumpWidget(
+        home(projects: withProject(), onNotificationTaskTap: tapped.add),
+      );
+      await tester.pump();
+
+      // The focus slot and the list both show it; either one leads there.
+      await tester.ensureVisible(find.text('Sembrar').first);
+      await tester.tap(find.text('Sembrar').first);
+      await settle(tester);
+
+      // The app's own hook still fires, and the Proyectos tab shows the
+      // project's detail.
+      expect(tapped, ['Sembrar']);
+      expect(find.byTooltip('Editar proyecto'), findsOneWidget);
+      expect(find.text('Progreso'), findsOneWidget);
+    });
+
+    testWidgets('a project card leads to its detail', (tester) async {
+      await tester.pumpWidget(home(projects: withProject()));
+      await tester.pump();
+
+      await tester.ensureVisible(find.text('Huerto'));
+      await tester.tap(find.text('Huerto'));
+      await settle(tester);
+
+      expect(find.byTooltip('Editar proyecto'), findsOneWidget);
+    });
+
+    testWidgets('a reminder tap leads to its project detail', (tester) async {
+      final notifications = FakeSeedlyNotificationService();
+      await tester.pumpWidget(
+        home(projects: withProject(), notifications: notifications),
+      );
+      await tester.pump();
+
+      notifications.onTaskReminderTap!.call('Sembrar');
+      await settle(tester);
+
+      expect(find.byTooltip('Editar proyecto'), findsOneWidget);
+    });
+
+    testWidgets('the Proyectos tab of the menu starts at the catalog', (
+      tester,
+    ) async {
+      await tester.pumpWidget(home(projects: withProject()));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Huerto'));
+      await tester.tap(find.text('Huerto'));
+      await settle(tester);
+      expect(find.byTooltip('Editar proyecto'), findsOneWidget);
+
+      Finder tab(String label) => find.descendant(
+        of: find.byType(SeedlyMenu),
+        matching: find.text(label),
+      );
+      await tester.tap(tab('Inicio'));
+      await tester.pump();
+      await tester.tap(tab('Proyectos'));
+      await settle(tester);
+
+      expect(find.byTooltip('Editar proyecto'), findsNothing);
+      expect(find.text('Buscar proyectos...'), findsOneWidget);
+    });
   });
 }
