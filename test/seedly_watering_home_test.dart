@@ -91,15 +91,24 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('la flecha atrás de Riego vuelve a Inicio', (tester) async {
+  testWidgets('la flecha atrás de una sesión pregunta antes de terminar', (
+    tester,
+  ) async {
+    store.saved['ana'] = running();
     await pumpHome(tester);
     await openRiego(tester);
+    expect(find.text('Regando tu Seedly'), findsOneWidget);
 
+    // La flecha ya no vuelve a Inicio: abre el modal de terminar sesión.
     await tester.tap(find.byTooltip('Volver'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('¿Terminar riego?'), findsOneWidget);
 
-    expect(find.text('Sesión de Riego'), findsNothing);
-    expect(find.text('Regar por 25 minutos'), findsOneWidget);
+    // Cancelar cierra el modal y la sesión sigue en curso.
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Terminar riego?'), findsNothing);
+    expect(find.text('Regando tu Seedly'), findsOneWidget);
     await close(tester);
   });
 

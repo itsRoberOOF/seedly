@@ -28,9 +28,6 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
   /// How long to wait for the server before trusting the offline queue.
   static const _serverWait = Duration(seconds: 8);
 
-  /// Pinged after every write, so [watchPlantState] sums again.
-  final _changed = StreamController<void>.broadcast();
-
   CollectionReference<Map<String, dynamic>> get _drops =>
       _firestore.collection('drops');
 
@@ -106,21 +103,13 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
     // waits for its loop to end, and this loop never ends on its own.
     final states = StreamController<SeedlyPlantState>();
     final subscriptions = <StreamSubscription<void>>[];
-    var phase = 1;
-    var total = 0;
+    int? phase;
+    int? total;
 
-    // A sum isn't a live query, so it runs again whenever the phase changes
-    // or this device writes. Drops paid on another device show up on the
-    // next of those, or the next time the screen opens.
-    Future<void> refresh() async {
-      try {
-        total = await _total(uid);
-      } on FirebaseException {
-        // Sums need the server; offline the last one stays.
-      }
-      if (!states.isClosed) {
-        states.add(SeedlyPlantState(phase: phase, totalDrops: total));
-      }
+    void emit() {
+      final (current, sum) = (phase, total);
+      if (current == null || sum == null || states.isClosed) return;
+      states.add(SeedlyPlantState(phase: current, totalDrops: sum));
     }
 
     states
@@ -134,17 +123,30 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
           ..add(
             _progress(uid).snapshots().listen((snapshot) {
               phase = snapshot.data()?['phase'] as int? ?? 1;
-              refresh();
+              emit();
             }, onError: states.addError),
           )
-          ..add(_changed.stream.listen((_) => refresh()));
+          // Summed here rather than by the server: live, so a drop paid
+          // anywhere — a tick, another device — shows at once, and one
+          // written on this device counts before the server answers.
+          ..add(
+            _drops.where('ownerId', isEqualTo: uid).snapshots().listen((
+              snapshot,
+            ) {
+              total = snapshot.docs.fold<int>(
+                0,
+                (drops, doc) => drops + (doc.data()['amount'] as int? ?? 0),
+              );
+              emit();
+            }, onError: states.addError),
+          );
       }
       ..onCancel = () async {
         for (final subscription in subscriptions) {
           await subscription.cancel();
         }
       };
-    return states.stream;
+    return states.stream.distinct();
   }
 
   @override
@@ -254,7 +256,6 @@ class FirestoreSeedlyDropsRepository implements SeedlyDropsRepository {
     } on FirebaseException {
       throw const SeedlyDropsException(SeedlyDropsError.saveFailed);
     }
-    _changed.add(null);
   }
 
   String _requireUser() =>

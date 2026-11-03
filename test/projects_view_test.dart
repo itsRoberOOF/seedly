@@ -198,6 +198,7 @@ void main() {
         tasksOfProject: replay(tasks),
       );
       drops = FakeSeedlyDropsRepository();
+      projects.drops = drops;
     });
 
     Future<void> openDetail(WidgetTester tester) async {
@@ -230,6 +231,58 @@ void main() {
       await tester.pump();
       expect(projects.doneChanges, [('t2', true)]);
       expect(drops.paid.keys, contains('task_t2'));
+    });
+
+    testWidgets('ticking says what it paid on the next frame', (tester) async {
+      await openDetail(tester);
+      await tester.tap(find.text('Regar'));
+      await tester.pump();
+      expect(find.text('Conseguiste 3 gotas por tu tarea.'), findsOneWidget);
+    });
+
+    testWidgets('quick ticks add up in one toast', (tester) async {
+      projects.tasksOfProject = replay(const [
+        ...tasks,
+        SeedlyTask(
+          id: 't3',
+          projectId: 'p1',
+          title: 'Abonar',
+          done: false,
+          order: 2,
+        ),
+      ]);
+      await openDetail(tester);
+      await tester.tap(find.text('Regar'));
+      await tester.pump();
+      await tester.tap(find.text('Abonar'));
+      await tester.pump();
+      expect(find.text('Conseguiste 6 gotas por 2 tareas.'), findsOneWidget);
+      expect(find.textContaining('Conseguiste'), findsOneWidget);
+    });
+
+    testWidgets('unticking a paid task says its drops went back', (
+      tester,
+    ) async {
+      drops.paid['task_t1'] = 3;
+      await openDetail(tester);
+      await tester.tap(find.text('Sembrar'));
+      await tester.pump();
+      expect(find.text('Se descontaron 3 gotas de tu planta.'), findsOneWidget);
+      expect(drops.paid, isEmpty);
+    });
+
+    testWidgets('a refused save replaces the toast with the error', (
+      tester,
+    ) async {
+      projects.refusal = const SeedlyProjectException(
+        SeedlyProjectError.saveFailed,
+      );
+      await openDetail(tester);
+      await tester.tap(find.text('Regar'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('No se pudo actualizar la tarea'), findsOneWidget);
+      expect(find.textContaining('Conseguiste'), findsNothing);
     });
 
     testWidgets('the filter shows pending and completed tasks', (tester) async {

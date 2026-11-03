@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:seedly/models/seedly_drops.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/repositories/seedly_project_repository.dart';
+
+import 'fake_seedly_drops_repository.dart';
 
 /// In-memory [SeedlyProjectRepository] so widget tests never reach Firestore.
 class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
@@ -125,6 +128,29 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   Future<void> setTaskDone(String taskId, bool done) async {
     if (error != null) throw error!;
     doneChanges.add((taskId, done));
+  }
+
+  /// Pays and takes back the drops of [settleTaskDone], when set.
+  FakeSeedlyDropsRepository? drops;
+
+  /// Whether a tick finishes its task's project, which then pays too.
+  bool finishesProjects = false;
+
+  /// Makes the server refuse what [settleTaskDone] handed over, when set.
+  SeedlyProjectException? refusal;
+
+  @override
+  Future<SeedlyTaskToggle> settleTaskDone(SeedlyTask task, bool done) async {
+    if (error != null) throw error!;
+    doneChanges.add((task.id, done));
+    final change =
+        drops?.settle(task, done, finishesProject: finishesProjects) ??
+        SeedlyDropsChange.none;
+    final refused = refusal;
+    final saved = refused == null
+        ? Future<void>.value()
+        : Future<void>.error(refused);
+    return SeedlyTaskToggle(change, saved..ignore());
   }
 }
 

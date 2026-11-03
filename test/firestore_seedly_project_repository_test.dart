@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/data/firebase/firestore_seedly_project_repository.dart';
+import 'package:seedly/models/seedly_drops.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
 
@@ -33,6 +34,34 @@ class _SlowBatch implements WriteBatch {
     final applied = _inner.commit();
     return _gate.then((_) => applied);
   }
+
+  @override
+  void delete(DocumentReference document) => _inner.delete(document);
+
+  @override
+  void set<T>(DocumentReference<T> document, T data, [SetOptions? options]) =>
+      _inner.set(document, data, options);
+
+  @override
+  void update<T>(DocumentReference<T> document, T data) =>
+      _inner.update(document, data);
+}
+
+/// A Firestore whose server refuses every batch, as firestore.rules would.
+class _RefusingServerFirestore extends FakeFirebaseFirestore {
+  @override
+  WriteBatch batch() => _RefusedBatch(super.batch());
+}
+
+class _RefusedBatch implements WriteBatch {
+  _RefusedBatch(this._inner);
+
+  final WriteBatch _inner;
+
+  @override
+  Future<void> commit() => Future.error(
+    FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+  );
 
   @override
   void delete(DocumentReference document) => _inner.delete(document);
@@ -756,6 +785,262 @@ void main() {
         expect(
           (await slow.collection('projects').doc('p').get())['doneCount'],
           0,
+        );
+      });
+    });
+
+    group('settleTaskDone', () {
+      final now = DateTime(2026, 10, 31, 15);
+
+      SeedlyTask task(String id) =>
+          SeedlyTask(id: id, projectId: 'p', title: id, done: false, order: 0);
+
+      Future<Map<String, dynamic>?> drop(String id) async =>
+          (await firestore.collection('drops').doc(id).get()).data();
+
+      Future<List<String>> drops() async => [
+        for (final doc in (await firestore.collection('drops').get()).docs)
+          doc.id,
+      ];
+
+      Future<void> seedPaidTasks(int count, DateTime at) async {
+        for (var i = 0; i < count; i++) {
+          await firestore.collection('drops').doc('task_old$i').set({
+            'ownerId': 'ana',
+            'source': 'task',
+            'refId': 'old$i',
+            'amount': 3,
+            'createdAt': Timestamp.fromDate(at),
+          });
+        }
+      }
+
+      /// A repository over a server that hasn't answered: as on a phone,
+      /// each batch is in the local view at once while `saved` waits for
+      /// [server]. The fake applies a batch over a few microtasks, so
+      /// [settled] lets it land, as the phone does within the same tap.
+      FirestoreSeedlyProjectRepository slowServer(Completer<void> server) {
+        firestore = _SlowServerFirestore(server.future);
+        return FirestoreSeedlyProjectRepository(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
+          firestore: firestore,
+          clock: () => now,
+        );
+      }
+
+      Future<SeedlyTaskToggle> settled(Future<SeedlyTaskToggle> tick) async {
+        final toggle = await tick;
+        await pumpEventQueue();
+        return toggle;
+      }
+
+      test('ticks the task and pays it in the same write', () async {
+        await seed(tasks: 4, done: 1);
+
+        final toggle = await projects.settleTaskDone(task('t1'), true);
+        await toggle.saved;
+
+        expect(toggle.drops, const SeedlyDropsChange(task: 3));
+        expect(
+          (await firestore.collection('tasks').doc('t1').get())['done'],
+          isTrue,
+        );
+        expect((await project())['doneCount'], 2);
+        final paid = (await drop('task_t1'))!;
+        // firestore.rules rejects any other key.
+        expect(
+          paid.keys,
+          unorderedEquals([
+            'ownerId',
+            'source',
+            'refId',
+            'amount',
+            'createdAt',
+          ]),
+        );
+        expect(paid['amount'], 3);
+        expect(paid['source'], 'task');
+      });
+
+      test('the tick that finishes the project pays it too', () async {
+        await seed(tasks: 3, done: 2);
+
+        final toggle = await projects.settleTaskDone(task('t2'), true);
+        await toggle.saved;
+
+        expect(toggle.drops, const SeedlyDropsChange(task: 3, project: 10));
+        expect(await drops(), unorderedEquals(['task_t2', 'project_p']));
+        expect((await drop('project_p'))!['amount'], 10);
+      });
+
+      test(
+        'unticking takes the task drop back and keeps the project one',
+        () async {
+          await seed(tasks: 3, done: 2);
+          await (await projects.settleTaskDone(task('t2'), true)).saved;
+
+          final untick = await projects.settleTaskDone(task('t2'), false);
+          await untick.saved;
+          expect(untick.drops, const SeedlyDropsChange(task: -3));
+          expect(await drops(), ['project_p']);
+          expect((await project())['doneCount'], 2);
+
+          // Finishing it again pays the task, but the project only once.
+          final tick = await projects.settleTaskDone(task('t2'), true);
+          await tick.saved;
+          expect(tick.drops, const SeedlyDropsChange(task: 3));
+          expect(await drops(), unorderedEquals(['task_t2', 'project_p']));
+        },
+      );
+
+      test('stops paying tasks at the daily cap', () async {
+        final capped = FirestoreSeedlyProjectRepository(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
+          firestore: firestore,
+          clock: () => now,
+        );
+        await seed(tasks: 4, done: 0);
+        await seedPaidTasks(20, now);
+
+        final toggle = await capped.settleTaskDone(task('t1'), true);
+        await toggle.saved;
+
+        expect(toggle.drops, const SeedlyDropsChange(capped: true));
+        expect(await drop('task_t1'), isNull);
+        expect((await project())['doneCount'], 1);
+      });
+
+      test('tasks paid yesterday do not count toward the cap', () async {
+        final capped = FirestoreSeedlyProjectRepository(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
+          firestore: firestore,
+          clock: () => now,
+        );
+        await seed(tasks: 4, done: 0);
+        await seedPaidTasks(20, now.subtract(const Duration(days: 1)));
+
+        final toggle = await capped.settleTaskDone(task('t1'), true);
+
+        expect(toggle.drops, const SeedlyDropsChange(task: 3));
+      });
+
+      test('the same state changes nothing', () async {
+        await seed();
+
+        final toggle = await projects.settleTaskDone(task('t0'), true);
+
+        expect(toggle.drops, SeedlyDropsChange.none);
+        expect((await project())['doneCount'], 1);
+        expect(await drops(), isEmpty);
+      });
+
+      test('answers and writes before the server does', () async {
+        final server = Completer<void>();
+        final repository = slowServer(server);
+        await seed(tasks: 3, done: 0);
+
+        final toggle = await settled(
+          repository.settleTaskDone(task('t1'), true),
+        );
+
+        // Known and in the local view while the server hasn't answered.
+        expect(toggle.drops, const SeedlyDropsChange(task: 3));
+        expect(await drop('task_t1'), isNotNull);
+        var saved = false;
+        unawaited(toggle.saved.then((_) => saved = true));
+        await pumpEventQueue();
+        expect(saved, isFalse);
+
+        server.complete();
+        await toggle.saved;
+        expect(saved, isTrue);
+      });
+
+      test('a quick second tick in the project sees the first', () async {
+        final server = Completer<void>();
+        final repository = slowServer(server);
+        await seed(tasks: 3, done: 1);
+
+        final first = await settled(
+          repository.settleTaskDone(task('t1'), true),
+        );
+        final second = await settled(
+          repository.settleTaskDone(task('t2'), true),
+        );
+
+        // Neither waited for the server, yet the second finished the project.
+        expect(first.drops, const SeedlyDropsChange(task: 3));
+        expect(second.drops, const SeedlyDropsChange(task: 3, project: 10));
+        expect((await project())['doneCount'], 3);
+        expect(
+          await drops(),
+          unorderedEquals(['task_t1', 'task_t2', 'project_p']),
+        );
+        server.complete();
+      });
+
+      test('a quick untick takes back the tick it follows', () async {
+        final server = Completer<void>();
+        final repository = slowServer(server);
+        await seed(tasks: 4, done: 0);
+
+        final tick = await settled(repository.settleTaskDone(task('t1'), true));
+        final untick = await settled(
+          repository.settleTaskDone(task('t1'), false),
+        );
+
+        expect(tick.drops, const SeedlyDropsChange(task: 3));
+        expect(untick.drops, const SeedlyDropsChange(task: -3));
+        expect(await drops(), isEmpty);
+        expect((await project())['doneCount'], 0);
+        server.complete();
+      });
+
+      test('two taps at once settle the task once', () async {
+        await seed(tasks: 4, done: 0);
+
+        final toggles = await Future.wait([
+          projects.settleTaskDone(task('t1'), true),
+          projects.settleTaskDone(task('t1'), true),
+        ]);
+        await Future.wait([for (final toggle in toggles) toggle.saved]);
+
+        expect(
+          toggles.where((toggle) => toggle.drops != SeedlyDropsChange.none),
+          hasLength(1),
+        );
+        expect((await project())['doneCount'], 1);
+        expect(await drops(), ['task_t1']);
+      });
+
+      test('a write the server refuses is reported through saved', () async {
+        final refusing = _RefusingServerFirestore();
+        final repository = FirestoreSeedlyProjectRepository(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
+          firestore: refusing,
+        );
+        await refusing.collection('projects').doc('p').set({
+          'ownerId': 'ana',
+          'taskCount': 3,
+          'doneCount': 0,
+        });
+        await refusing.collection('tasks').doc('t1').set({
+          'ownerId': 'ana',
+          'projectId': 'p',
+          'done': false,
+        });
+
+        final toggle = await repository.settleTaskDone(task('t1'), true);
+
+        await expectLater(
+          toggle.saved,
+          throwsA(
+            isA<SeedlyProjectException>().having(
+              (error) => error.reason,
+              'reason',
+              SeedlyProjectError.saveFailed,
+            ),
+          ),
         );
       });
     });

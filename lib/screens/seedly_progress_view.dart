@@ -184,56 +184,58 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
     ),
   );
 
-  Widget _layout(List<Widget> children, {required bool readError}) => SafeArea(
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = _layoutScale;
-        final top = math.max(
-          12.0,
-          48 * scale - MediaQuery.paddingOf(context).top,
-        );
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  32 * scale,
-                  top,
-                  32 * scale,
-                  16 * scale,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (readError)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Sin conexión. Se muestra el último progreso.',
+  Widget _layout(List<Widget> children, {required bool readError}) {
+    // Measured above the SafeArea, where the status bar is still the real
+    // inset, so the header lands at the same height as Detalle de proyecto and
+    // Riego. Inside the SafeArea the inset reads 0 and the header sinks.
+    final top = math.max(24.0, 48 - MediaQuery.paddingOf(context).top);
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = _layoutScale;
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    32 * scale,
+                    top,
+                    32 * scale,
+                    16 * scale,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (readError)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Sin conexión. Se muestra el último progreso.',
+                                ),
                               ),
-                            ),
-                            TextButton(
-                              onPressed: _retry,
-                              child: const Text('Reintentar'),
-                            ),
-                          ],
+                              TextButton(
+                                onPressed: _retry,
+                                child: const Text('Reintentar'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ...children,
-                  ],
+                      ...children,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
+          );
+        },
+      ),
+    );
+  }
 
   List<Widget> _progress(SeedlyPlantState plant) {
     final goal = plant.nextGoal!;
@@ -369,10 +371,12 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
         ),
       ],
     ),
-    _PlantSlot(plant.phase),
+    _PlantSlot(plant.phase, scale: 0.85),
     Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // A touch of breathing room so the card isn't cramped under the plant.
+        SizedBox(height: 24 * _layoutScale),
         _dropsCard(
           value: plant.nextGoal ?? plant.totalDrops,
           label: plant.nextGoal == null
@@ -473,16 +477,24 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
 }
 
 class _PlantSlot extends StatelessWidget {
-  const _PlantSlot(this.phase);
+  const _PlantSlot(this.phase, {this.scale = 1.0});
   final int phase;
+
+  /// Shrinks the whole slot (blob + plant); the growth screen uses < 1.
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
-    final scale = math.min(1.0, MediaQuery.sizeOf(context).width / 440);
-    final width = math.max(
-      1.0,
-      math.min(300 * scale, MediaQuery.sizeOf(context).width - 64 * scale),
-    );
+    final layoutScale = math.min(1.0, MediaQuery.sizeOf(context).width / 440);
+    final width =
+        math.max(
+          1.0,
+          math.min(
+            300 * layoutScale,
+            MediaQuery.sizeOf(context).width - 64 * layoutScale,
+          ),
+        ) *
+        scale;
     final plantScale = width / 300;
     return SizedBox(
       width: width,

@@ -14,6 +14,7 @@ import '../services/seedly_task_completion.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
+import '../widgets/seedly_drops_feedback.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_checkbox.dart';
 import '../widgets/seedly_header.dart';
@@ -108,12 +109,16 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
     );
   }
 
-  Future<void> _toggle(SeedlyTask task, bool done) async {
-    try {
-      await _completion.setDone(task, done);
-    } on SeedlyProjectException catch (error) {
-      _fail('No se pudo actualizar la tarea', error);
-    }
+  final _dropsToaster = SeedlyDropsToaster();
+
+  Future<void> _toggle(SeedlyTask task, bool done) {
+    return _dropsToaster.complete(
+      context,
+      _completion,
+      task,
+      done: done,
+      onError: (error) => _fail('No se pudo actualizar la tarea', error),
+    );
   }
 
   Future<void> _deleteTask(SeedlyTask task) async {

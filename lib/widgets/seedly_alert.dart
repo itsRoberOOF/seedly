@@ -265,8 +265,9 @@ class _SeedlyAlertKeepClearState extends State<SeedlyAlertKeepClear> {
 
 /// Shows a [SeedlyAlert] floating at the top of the screen, replacing any
 /// alert already visible. It closes itself after [duration] or with its X,
-/// and stays below anything wrapped in [SeedlyAlertKeepClear].
-void showSeedlyAlert(
+/// and stays below anything wrapped in [SeedlyAlertKeepClear]. Returns a
+/// handle for [isSeedlyAlertVisible].
+Object showSeedlyAlert(
   BuildContext context, {
   required String title,
   required String message,
@@ -291,7 +292,13 @@ void showSeedlyAlert(
   );
   final overlay = Overlay.of(context, rootOverlay: true)..insert(entry);
   _visibleAlert = (entry: entry, overlay: overlay);
+  return entry;
 }
+
+/// Whether the alert [handle], from [showSeedlyAlert], is still on screen:
+/// neither closed nor replaced by another.
+bool isSeedlyAlertVisible(Object handle) =>
+    identical(_visibleAlert?.entry, handle);
 
 /// Removes the visible floating alert right away, if any.
 void hideSeedlyAlert() {
