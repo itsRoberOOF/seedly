@@ -68,7 +68,16 @@ class _SeedlyProjectsViewState extends State<SeedlyProjectsView> {
 
   Future<void> _toggleTask(SeedlyTask task, bool done) async {
     try {
-      await _completion.setDone(task, done);
+      final earned = await _completion.setDone(task, done);
+      if (!mounted) return;
+      if (seedlyDropsEarnedToast(earned) case final toast?) {
+        showSeedlyAlert(
+          context,
+          style: SeedlyAlertStyle.success,
+          title: toast.title,
+          message: toast.message,
+        );
+      }
     } on SeedlyProjectException catch (error) {
       if (!mounted) return;
       showSeedlyAlert(

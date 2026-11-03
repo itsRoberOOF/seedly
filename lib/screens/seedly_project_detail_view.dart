@@ -110,7 +110,16 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
 
   Future<void> _toggle(SeedlyTask task, bool done) async {
     try {
-      await _completion.setDone(task, done);
+      final earned = await _completion.setDone(task, done);
+      if (!mounted) return;
+      if (seedlyDropsEarnedToast(earned) case final toast?) {
+        showSeedlyAlert(
+          context,
+          style: SeedlyAlertStyle.success,
+          title: toast.title,
+          message: toast.message,
+        );
+      }
     } on SeedlyProjectException catch (error) {
       _fail('No se pudo actualizar la tarea', error);
     }

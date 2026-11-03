@@ -94,4 +94,49 @@ void main() {
     await SeedlyTaskCompletion(projects: projects).setDone(task(), true);
     expect(projects.doneChanges, [('t1', true)]);
   });
+
+  test('setDone reports the task and project drops it paid', () async {
+    expect(await completion.setDone(task(), true), (task: 3, project: 10));
+  });
+
+  test('unticking reports no drops', () async {
+    await completion.setDone(task(), true);
+    expect(
+      await completion.setDone(task(done: true), false),
+      (task: 0, project: 0),
+    );
+  });
+
+  test('already-paid drops report nothing, so no false toast', () async {
+    await completion.setDone(task(), true);
+    expect(
+      await completion.setDone(task(done: true), true),
+      (task: 0, project: 0),
+    );
+  });
+
+  group('seedlyDropsEarnedToast', () {
+    test('is silent when nothing was paid', () {
+      expect(seedlyDropsEarnedToast((task: 0, project: 0)), isNull);
+    });
+
+    test('celebrates a task on its own', () {
+      final toast = seedlyDropsEarnedToast((task: 3, project: 0));
+      expect(toast?.message, contains('3 gotas'));
+    });
+
+    test('combines task and project when both pay', () {
+      final toast = seedlyDropsEarnedToast((task: 3, project: 10));
+      expect(toast?.title, '¡Proyecto completado!');
+      expect(toast?.message, contains('13 gotas'));
+      expect(toast?.message, contains('+3 de la tarea'));
+      expect(toast?.message, contains('+10 del proyecto'));
+    });
+
+    test('handles a project paid without the task', () {
+      final toast = seedlyDropsEarnedToast((task: 0, project: 10));
+      expect(toast?.message, contains('10 gotas'));
+      expect(toast?.message, isNot(contains('de la tarea')));
+    });
+  });
 }
