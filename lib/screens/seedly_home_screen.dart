@@ -12,6 +12,8 @@ import '../repositories/seedly_user_repository.dart';
 import '../services/seedly_image_picker.dart';
 import '../services/seedly_notification_service.dart';
 import '../services/seedly_task_reminder_coordinator.dart';
+import '../services/seedly_watering_controller.dart';
+import '../services/seedly_watering_store.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
@@ -23,6 +25,7 @@ import 'seedly_inicio_view.dart';
 import 'seedly_login_screen.dart';
 import 'seedly_profile_view.dart';
 import 'seedly_projects_view.dart';
+import 'seedly_watering_view.dart';
 
 /// Signed-in shell: the bottom menu switches the active tab. Inicio combines
 /// the greeting, plant and task feed; the add button's project
@@ -37,6 +40,7 @@ class SeedlyHomeScreen extends StatefulWidget {
     this.notifications,
     this.drops,
     this.onNotificationTaskTap,
+    this.wateringStore,
   });
 
   final SeedlyAuthRepository auth;
@@ -55,6 +59,10 @@ class SeedlyHomeScreen extends StatefulWidget {
   /// Hook for Persona 1's future task editor when a reminder or a task card
   /// is tapped.
   final void Function(String taskId)? onNotificationTaskTap;
+
+  /// Dónde se guarda la sesión de riego en curso; los tests usan uno en
+  /// memoria.
+  final SeedlyWateringStore? wateringStore;
 
   @override
   State<SeedlyHomeScreen> createState() => _SeedlyHomeScreenState();
@@ -78,16 +86,34 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// Whether "Crear tarea" (a task for an existing project) is open.
   bool _addingTask = false;
 
+  /// La sesión de riego, que sigue mientras se cambia de pestaña. Sin el
+  /// sistema de gotas no hay riego.
+  SeedlyWateringController? _watering;
+
   @override
   void initState() {
     super.initState();
+    final drops = widget.drops;
+    if (drops != null) {
+      final watering = SeedlyWateringController(
+        drops: drops,
+        store: widget.wateringStore ?? SharedPreferencesSeedlyWateringStore(),
+        ownerId: widget.auth.currentUserId,
+        notifications: widget.notifications,
+      );
+      _watering = watering;
+      unawaited(watering.restore());
+    }
     unawaited(_startReminderCoordinator());
   }
 
   Future<void> _startReminderCoordinator() async {
     final notifications = widget.notifications;
     if (notifications == null || _signingOut || _coordinator != null) return;
-    await notifications.initialize(onTaskReminderTap: _onTaskTap);
+    await notifications.initialize(
+      onTaskReminderTap: _onTaskTap,
+      onWateringSessionTap: _onWateringTap,
+    );
     if (!mounted || _signingOut || _coordinator != null) return;
     final coordinator = SeedlyTaskReminderCoordinator(
       tasks: _futureTasks,
@@ -124,6 +150,17 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     }
   }
 
+  /// Tocar un aviso de riego abre la pestaña Riego.
+  void _onWateringTap(String sessionId) {
+    if (!mounted || _watering == null) return;
+    hideSeedlyAlert();
+    setState(() {
+      _creating = null;
+      _addingTask = false;
+      _active = SeedlyMenuTab.riego;
+    });
+  }
+
   /// The project whose detail the Proyectos tab should open, set by a tap on
   /// a task or a project of Inicio, or on a reminder. [_openRequest]
   /// remounts the tab so a new request always opens.
@@ -144,6 +181,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   @override
   void dispose() {
     unawaited(_stopReminderCoordinator());
+    _watering?.dispose();
     super.dispose();
   }
 
@@ -158,6 +196,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     try {
       await widget.auth.signOut();
       signedOut = true;
+      // Se van los avisos de riego, pero la sesión queda guardada para cuando
+      // vuelva a entrar. suspend() nunca lanza.
+      await _watering?.suspend();
       try {
         await widget.notifications?.cancelAllTaskReminders();
       } on Object {
@@ -305,6 +346,13 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               onReminderSelected: widget.notifications == null
                   ? null
                   : _requestReminderPermission,
+            )
+          : _active == SeedlyMenuTab.riego && _watering != null
+          ? SeedlyWateringView(
+              controller: _watering!,
+              projects: widget.projects,
+              drops: widget.drops,
+              onHome: () => setState(() => _active = SeedlyMenuTab.inicio),
             )
           : _active == SeedlyMenuTab.inicio
           ? SeedlyInicioView(
