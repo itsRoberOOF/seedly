@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -18,6 +20,9 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   static const _wateringPrefix = 'watering:';
   static const _taskChannelId = 'seedly_reminders';
   static const _wateringChannelId = 'seedly_watering';
+  static const _wateringChannelName = 'Sesión de riego';
+  static const _wateringChannelDescription =
+      'Avisos de sesiones de riego de Seedly';
 
   final FlutterLocalNotificationsPlugin _plugin;
   Future<void>? _initializing;
@@ -27,6 +32,8 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   bool _exactAlarmGranted = false;
   void Function(String taskId)? _onTaskReminderTap;
   String? _pendingTaskId;
+  void Function(String sessionId)? _onWateringSessionTap;
+  String? _pendingWateringSessionId;
 
   bool get _supported =>
       !kIsWeb &&
@@ -35,14 +42,24 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
           defaultTargetPlatform == TargetPlatform.macOS);
 
   @override
-  Future<void> initialize({void Function(String taskId)? onTaskReminderTap}) {
+  Future<void> initialize({
+    void Function(String taskId)? onTaskReminderTap,
+    void Function(String sessionId)? onWateringSessionTap,
+  }) {
     _onTaskReminderTap = onTaskReminderTap;
+    _onWateringSessionTap = onWateringSessionTap;
     if (_initialized) {
-      _deliverPendingTask();
+      _deliverPending();
       return Future<void>.value();
     }
-    return _initializing ??= _initialize();
+    return _ensureInitialized();
   }
+
+  /// Para las llamadas internas del servicio: a diferencia de [initialize],
+  /// no toca los handlers de toque. Antes cada llamada interna los dejaba en
+  /// null y tocar un recordatorio no abría nada.
+  Future<void> _ensureInitialized() =>
+      _initialized ? Future<void>.value() : _initializing ??= _initialize();
 
   Future<void> _initialize() async {
     if (!_supported) {
@@ -77,22 +94,22 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: (response) {
-        _deliverTaskPayload(response.payload);
+        _deliverPayload(response.payload);
       },
     );
     final launch = await _plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true) {
-      _deliverTaskPayload(launch?.notificationResponse?.payload);
+      _deliverPayload(launch?.notificationResponse?.payload);
     }
     await _refreshNotificationPermissionState();
     await _refreshExactAlarmState();
     _initialized = true;
-    _deliverPendingTask();
+    _deliverPending();
   }
 
   @override
   Future<SeedlyNotificationPermission> requestReminderPermission() async {
-    await initialize();
+    await _ensureInitialized();
     if (!_supported) return SeedlyNotificationPermission.unavailable;
 
     if (defaultTargetPlatform == TargetPlatform.android) {
@@ -169,8 +186,34 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   }
 
   @override
+  Future<SeedlyNotificationPermission> requestWateringPermission() async {
+    await _ensureInitialized();
+    if (!_supported) return SeedlyNotificationPermission.unavailable;
+    // iOS y macOS piden todo junto de todos modos.
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return requestReminderPermission();
+    }
+    bool granted;
+    try {
+      granted =
+          await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.requestNotificationsPermission() ??
+          true;
+    } on Object {
+      granted = false;
+    }
+    _notificationsGranted = granted;
+    return granted
+        ? SeedlyNotificationPermission.granted
+        : SeedlyNotificationPermission.denied;
+  }
+
+  @override
   Future<void> scheduleTaskReminder(SeedlyTask task) async {
-    await initialize();
+    await _ensureInitialized();
     if (!_supported || !_timezoneReady) return;
     if (!await _refreshNotificationPermissionState()) {
       await cancelTaskReminder(task.id);
@@ -214,13 +257,13 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
 
   @override
   Future<void> cancelTaskReminder(String taskId) async {
-    await initialize();
+    await _ensureInitialized();
     if (_supported) await _plugin.cancel(id: _taskNotificationId(taskId));
   }
 
   @override
   Future<void> syncTaskReminders(Iterable<SeedlyTask> tasks) async {
-    await initialize();
+    await _ensureInitialized();
     if (!_supported) return;
     if (!await _refreshNotificationPermissionState()) {
       await _cancelAllTaskNotificationRequests();
@@ -251,7 +294,7 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
 
   @override
   Future<void> cancelAllTaskReminders() async {
-    await initialize();
+    await _ensureInitialized();
     if (!_supported) return;
     await _cancelAllTaskNotificationRequests();
   }
@@ -271,23 +314,32 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
     required String sessionId,
     required String title,
     required String body,
+    DateTime? endsAt,
   }) async {
-    await initialize();
+    await _ensureInitialized();
     if (!_supported) return;
+    final left = endsAt?.difference(DateTime.now()).inMilliseconds;
     await _plugin.show(
       id: _wateringNotificationId(sessionId),
       title: title,
       body: body,
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _wateringChannelId,
-          'Sesión de riego',
-          channelDescription: 'Avisos de sesiones de riego de Seedly',
+          _wateringChannelName,
+          channelDescription: _wateringChannelDescription,
           importance: Importance.high,
           priority: Priority.high,
+          // Fijo mientras dura la sesión, y silencioso: se actualiza en
+          // cada pausa y cada reanudación.
+          ongoing: true,
+          autoCancel: false,
+          silent: true,
+          onlyAlertOnce: true,
+          timeoutAfter: left == null ? null : math.max(left, 1),
         ),
-        iOS: DarwinNotificationDetails(presentSound: true),
-        macOS: DarwinNotificationDetails(presentSound: true),
+        iOS: const DarwinNotificationDetails(presentSound: false),
+        macOS: const DarwinNotificationDetails(presentSound: false),
       ),
       payload: '$_wateringPrefix$sessionId',
     );
@@ -295,28 +347,84 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
 
   @override
   Future<void> cancelWateringSessionNotification(String sessionId) async {
-    await initialize();
+    await _ensureInitialized();
     if (_supported) {
       await _plugin.cancel(id: _wateringNotificationId(sessionId));
     }
   }
 
-  void _deliverTaskPayload(String? payload) {
-    final taskId = _taskIdFromPayload(payload);
-    if (taskId == null) return;
-    if (_onTaskReminderTap case final callback?) {
-      callback(taskId);
-    } else {
-      _pendingTaskId = taskId;
+  @override
+  Future<void> scheduleWateringSessionEnd({
+    required String sessionId,
+    required DateTime at,
+    required String title,
+    required String body,
+  }) async {
+    await _ensureInitialized();
+    if (!_supported || !_timezoneReady) return;
+    await _refreshExactAlarmState();
+    await _plugin.zonedSchedule(
+      id: _wateringEndNotificationId(sessionId),
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _wateringChannelId,
+          _wateringChannelName,
+          channelDescription: _wateringChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(presentSound: true),
+        macOS: DarwinNotificationDetails(presentSound: true),
+      ),
+      // Sin alarmas exactas Android puede entregarlo unos minutos tarde; con
+      // la app abierta, la sesión igual termina a tiempo.
+      androidScheduleMode: _exactAlarmGranted
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: '$_wateringPrefix$sessionId',
+    );
+  }
+
+  @override
+  Future<void> cancelWateringSessionEnd(String sessionId) async {
+    await _ensureInitialized();
+    if (_supported) {
+      await _plugin.cancel(id: _wateringEndNotificationId(sessionId));
     }
   }
 
-  void _deliverPendingTask() {
+  void _deliverPayload(String? payload) {
+    if (_taskIdFromPayload(payload) case final taskId?) {
+      if (_onTaskReminderTap case final callback?) {
+        callback(taskId);
+      } else {
+        _pendingTaskId = taskId;
+      }
+    } else if (_sessionIdFromPayload(payload) case final sessionId?) {
+      if (_onWateringSessionTap case final callback?) {
+        callback(sessionId);
+      } else {
+        _pendingWateringSessionId = sessionId;
+      }
+    }
+  }
+
+  void _deliverPending() {
     final taskId = _pendingTaskId;
-    final callback = _onTaskReminderTap;
-    if (taskId == null || callback == null) return;
-    _pendingTaskId = null;
-    callback(taskId);
+    final onTask = _onTaskReminderTap;
+    if (taskId != null && onTask != null) {
+      _pendingTaskId = null;
+      onTask(taskId);
+    }
+    final sessionId = _pendingWateringSessionId;
+    final onWatering = _onWateringSessionTap;
+    if (sessionId != null && onWatering != null) {
+      _pendingWateringSessionId = null;
+      onWatering(sessionId);
+    }
   }
 
   Future<bool> _refreshNotificationPermissionState() async {
@@ -374,8 +482,18 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
   static int _taskNotificationId(String taskId) =>
       _stableNotificationId('task:$taskId');
 
+  static String? _sessionIdFromPayload(String? payload) =>
+      payload != null && payload.startsWith(_wateringPrefix)
+      ? payload.substring(_wateringPrefix.length)
+      : null;
+
   static int _wateringNotificationId(String sessionId) =>
       _stableNotificationId('watering:$sessionId');
+
+  /// Id propio, para cancelar por separado el aviso de "sesión terminada" y
+  /// el fijo; los dos llevan el mismo payload `watering:`.
+  static int _wateringEndNotificationId(String sessionId) =>
+      _stableNotificationId('watering-end:$sessionId');
 
   static int _stableNotificationId(String value) {
     var hash = 2166136261;
