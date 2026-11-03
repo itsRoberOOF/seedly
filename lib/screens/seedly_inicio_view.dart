@@ -27,6 +27,7 @@ class SeedlyInicioView extends StatefulWidget {
     this.drops,
     this.onTaskTap,
     this.onProjectTap,
+    this.onProgress,
     this.onWater,
     this.onSeeProjects,
     this.onAdd,
@@ -44,6 +45,9 @@ class SeedlyInicioView extends StatefulWidget {
 
   /// Opens a project's detail from its card.
   final void Function(String projectId)? onProjectTap;
+
+  /// Opens Mi progreso when the plant is tapped.
+  final VoidCallback? onProgress;
 
   /// "Regar por 25 minutos": takes the person to Riego.
   final VoidCallback? onWater;
@@ -145,9 +149,12 @@ class _SeedlyInicioViewState extends State<SeedlyInicioView> {
                 photo: widget.profile?.photo,
                 drops: plant.totalDrops,
               ),
-              SeedlyPlantBlob(
-                phase: plant.phase,
-                scale: SeedlyInicioView.plantScale,
+              GestureDetector(
+                onTap: widget.onProgress,
+                child: SeedlyPlantBlob(
+                  phase: plant.phase,
+                  scale: SeedlyInicioView.plantScale,
+                ),
               ),
             ],
           ),

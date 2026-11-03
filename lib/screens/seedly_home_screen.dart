@@ -23,6 +23,7 @@ import 'seedly_add_task_view.dart';
 import 'seedly_create_project_view.dart';
 import 'seedly_inicio_view.dart';
 import 'seedly_login_screen.dart';
+import 'seedly_progress_view.dart';
 import 'seedly_profile_view.dart';
 import 'seedly_projects_view.dart';
 import 'seedly_watering_view.dart';
@@ -280,6 +281,23 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     );
   }
 
+  void _openProgress() {
+    final drops = widget.drops;
+    if (drops == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SeedlyProgressView(
+          drops: drops,
+          onWater: () {
+            if (!mounted) return;
+            Navigator.of(context).pop();
+            setState(() => _active = SeedlyMenuTab.riego);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final creating = _creating;
@@ -359,6 +377,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
               projects: widget.projects,
               profile: widget.auth.currentUser,
               drops: widget.drops,
+              onProgress: widget.drops == null ? null : _openProgress,
               onTaskTap: _onTaskTap,
               onProjectTap: _openProject,
               onWater: () => setState(() => _active = SeedlyMenuTab.riego),
