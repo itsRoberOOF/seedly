@@ -237,32 +237,34 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
   Future<void> deleteTask(String taskId) async {
     final uid = _requireUser();
     final ref = _firestore.collection('tasks').doc(taskId);
-    final data = await _readOwned(ref, uid);
-    final batch = _firestore.batch()
-      ..delete(ref)
-      ..update(
-        _firestore.collection('projects').doc(data['projectId'] as String),
-        {
-          'taskCount': FieldValue.increment(-1),
-          if (data['done'] == true) 'doneCount': FieldValue.increment(-1),
-        },
-      );
-    await _commit(batch);
+    await _inTurn(taskId, () async {
+      final data = await _readOwned(ref, uid);
+      return _firestore.batch()
+        ..delete(ref)
+        ..update(
+          _firestore.collection('projects').doc(data['projectId'] as String),
+          {
+            'taskCount': FieldValue.increment(-1),
+            if (data['done'] == true) 'doneCount': FieldValue.increment(-1),
+          },
+        );
+    });
   }
 
   @override
   Future<void> setTaskDone(String taskId, bool done) async {
     final uid = _requireUser();
     final ref = _firestore.collection('tasks').doc(taskId);
-    final data = await _readOwned(ref, uid);
-    if (data['done'] == done) return;
-    final batch = _firestore.batch()
-      ..update(ref, {'done': done})
-      ..update(
-        _firestore.collection('projects').doc(data['projectId'] as String),
-        {'doneCount': FieldValue.increment(done ? 1 : -1)},
-      );
-    await _commit(batch);
+    await _inTurn(taskId, () async {
+      final data = await _readOwned(ref, uid);
+      if (data['done'] == done) return null;
+      return _firestore.batch()
+        ..update(ref, {'done': done})
+        ..update(
+          _firestore.collection('projects').doc(data['projectId'] as String),
+          {'doneCount': FieldValue.increment(done ? 1 : -1)},
+        );
+    });
   }
 
   String _requireUser() {
@@ -293,6 +295,41 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
     } on FirebaseException {
       throw const SeedlyProjectException(SeedlyProjectError.saveFailed);
     }
+  }
+
+  /// For each task, the end of the last operation on it that read it and
+  /// handed its write to Firestore. See [_inTurn].
+  final _turns = <String, Future<void>>{};
+
+  /// Runs [prepare] once every earlier operation on [taskId] has handed its
+  /// write to Firestore, so that it reads what they wrote. [prepare] reads
+  /// the task and returns the batch to send, or null when there is nothing
+  /// to write.
+  ///
+  /// [setTaskDone] and [deleteTask] read the task and then raise or lower its
+  /// project's counters by what they saw. Two at once, such as a double tap,
+  /// both saw the same state and counted twice. The wait lasts only until the
+  /// write is handed over, not until the server answers, which offline can
+  /// take [_serverWait]: Firestore's local view already shows a handed-over
+  /// write to the next read.
+  Future<void> _inTurn(
+    String taskId,
+    Future<WriteBatch?> Function() prepare,
+  ) async {
+    final previous = _turns[taskId];
+    final released = Completer<void>();
+    final mine = _turns[taskId] = released.future;
+    Future<void>? sending;
+    try {
+      await previous;
+      final batch = await prepare();
+      // commit() is called now, so the next turn already sees the write.
+      if (batch != null) sending = _commit(batch);
+    } finally {
+      released.complete();
+      if (identical(_turns[taskId], mine)) _turns.remove(taskId);
+    }
+    await sending;
   }
 
   /// Offline the batch is already in the local cache and syncs later, but

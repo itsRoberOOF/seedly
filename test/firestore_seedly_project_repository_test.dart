@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +9,42 @@ import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
 
 import 'support/fake_seedly_auth_repository.dart';
+
+/// A Firestore whose batches take effect at once, as offline writes do in the
+/// local cache, but only report done when [gate] completes, like a server
+/// that is slow to answer.
+class _SlowServerFirestore extends FakeFirebaseFirestore {
+  _SlowServerFirestore(this.gate);
+
+  final Future<void> gate;
+
+  @override
+  WriteBatch batch() => _SlowBatch(super.batch(), gate);
+}
+
+class _SlowBatch implements WriteBatch {
+  _SlowBatch(this._inner, this._gate);
+
+  final WriteBatch _inner;
+  final Future<void> _gate;
+
+  @override
+  Future<void> commit() {
+    final applied = _inner.commit();
+    return _gate.then((_) => applied);
+  }
+
+  @override
+  void delete(DocumentReference document) => _inner.delete(document);
+
+  @override
+  void set<T>(DocumentReference<T> document, T data, [SetOptions? options]) =>
+      _inner.set(document, data, options);
+
+  @override
+  void update<T>(DocumentReference<T> document, T data) =>
+      _inner.update(document, data);
+}
 
 void main() {
   late FakeFirebaseFirestore firestore;
@@ -453,6 +490,170 @@ void main() {
       await projects.deleteTask('t2');
       expect((await project())['taskCount'], 2);
       expect((await project())['doneCount'], 1);
+    });
+
+    group('the same task at once', () {
+      Future<Object?> outcome(Future<void> write) =>
+          write.then<Object?>((_) => null, onError: (Object error) => error);
+
+      Matcher notFound() => isA<SeedlyProjectException>().having(
+        (error) => error.reason,
+        'reason',
+        SeedlyProjectError.notFound,
+      );
+
+      Future<bool> done(String id) async =>
+          (await firestore.collection('tasks').doc(id).get()).data()!['done']
+              as bool;
+
+      test('two ticks count once', () async {
+        await seed(tasks: 4, done: 0);
+
+        await Future.wait([
+          projects.setTaskDone('t1', true),
+          projects.setTaskDone('t1', true),
+        ]);
+
+        expect(await done('t1'), isTrue);
+        expect((await project())['doneCount'], 1);
+      });
+
+      test('two unticks count once', () async {
+        await seed(tasks: 4, done: 2);
+
+        await Future.wait([
+          projects.setTaskDone('t0', false),
+          projects.setTaskDone('t0', false),
+        ]);
+
+        expect(await done('t0'), isFalse);
+        expect((await project())['doneCount'], 1);
+      });
+
+      test('five quick taps on a pending task count once', () async {
+        await seed(tasks: 4, done: 0);
+
+        await Future.wait([
+          for (var tap = 0; tap < 5; tap++) projects.setTaskDone('t1', true),
+        ]);
+
+        expect((await project())['doneCount'], 1);
+      });
+
+      test('a tick and an untick together end unticked and even', () async {
+        await seed(tasks: 4, done: 0);
+
+        await Future.wait([
+          projects.setTaskDone('t1', true),
+          projects.setTaskDone('t1', false),
+        ]);
+
+        expect(await done('t1'), isFalse);
+        expect((await project())['doneCount'], 0);
+      });
+
+      test(
+        'two deletes lower taskCount once and the second finds nothing',
+        () async {
+          await seed(tasks: 4, done: 0);
+
+          final outcomes = await Future.wait([
+            outcome(projects.deleteTask('t1')),
+            outcome(projects.deleteTask('t1')),
+          ]);
+
+          expect(outcomes.whereType<SeedlyProjectException>(), hasLength(1));
+          expect(
+            outcomes.whereType<SeedlyProjectException>().single,
+            notFound(),
+          );
+          expect((await project())['taskCount'], 3);
+        },
+      );
+
+      test('a tick and a delete together keep the counters even', () async {
+        await seed(tasks: 4, done: 0);
+
+        await Future.wait([
+          projects.setTaskDone('t1', true),
+          projects.deleteTask('t1'),
+        ]);
+
+        expect((await project())['taskCount'], 3);
+        expect((await project())['doneCount'], 0);
+      });
+
+      test('different tasks both count', () async {
+        await seed(tasks: 4, done: 0);
+
+        await Future.wait([
+          projects.setTaskDone('t1', true),
+          projects.setTaskDone('t2', true),
+        ]);
+
+        expect((await project())['doneCount'], 2);
+      });
+
+      test('a failed write does not block the next on that task', () async {
+        await seed(tasks: 4, done: 0);
+        await projects.deleteTask('t1');
+
+        await expectLater(projects.deleteTask('t1'), throwsA(notFound()));
+        await expectLater(
+          projects.setTaskDone('t1', true),
+          throwsA(notFound()),
+        );
+        // Others are untouched by that task's failures.
+        await projects.setTaskDone('t2', true);
+        expect((await project())['doneCount'], 1);
+      });
+
+      test('the next tap waits for the write, not for the server', () async {
+        final server = Completer<void>();
+        final slow = _SlowServerFirestore(server.future);
+        final repository = FirestoreSeedlyProjectRepository(
+          auth: FakeSeedlyAuthRepository(isSignedIn: true, uid: 'ana'),
+          firestore: slow,
+        );
+        await slow.collection('projects').doc('p').set({
+          'ownerId': 'ana',
+          'name': 'Huerto',
+          'kind': 'full',
+          'icon': 'planta',
+          'taskCount': 3,
+          'doneCount': 0,
+        });
+        await slow.collection('tasks').doc('t1').set({
+          'ownerId': 'ana',
+          'projectId': 'p',
+          'title': 'Tarea',
+          'done': false,
+          'order': 0,
+        });
+
+        // Tick, then untick, while the server has not answered the first.
+        final first = repository.setTaskDone('t1', true);
+        final second = repository.setTaskDone('t1', false);
+        await pumpEventQueue();
+
+        // The second already ran: it saw the first's write and undid it, so
+        // it did not wait for the server to reply.
+        expect(
+          (await slow.collection('tasks').doc('t1').get())['done'],
+          isFalse,
+        );
+        expect(
+          (await slow.collection('projects').doc('p').get())['doneCount'],
+          0,
+        );
+
+        server.complete();
+        await Future.wait([first, second]);
+        expect(
+          (await slow.collection('projects').doc('p').get())['doneCount'],
+          0,
+        );
+      });
     });
 
     test('updateProject edits the project\'s own fields', () async {
