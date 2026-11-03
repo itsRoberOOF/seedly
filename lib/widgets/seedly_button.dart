@@ -17,6 +17,7 @@ class SeedlyButton extends StatelessWidget {
     this.leading,
     this.trailing,
     this.expand = false,
+    this.shrinkLabelToFit = false,
     this.foreground,
     this.color,
   });
@@ -28,6 +29,7 @@ class SeedlyButton extends StatelessWidget {
   final Widget? leading;
   final Widget? trailing;
   final bool expand;
+  final bool shrinkLabelToFit;
 
   /// Text and icon colour for outline and text buttons, such as the grey
   /// "Cancelar"; filled buttons stay white on green.
@@ -90,7 +92,12 @@ class SeedlyButton extends StatelessWidget {
       children: [
         if (leading != null) ...[leading!, const SizedBox(width: 8)],
         Flexible(
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: shrinkLabelToFit
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(label, maxLines: 1, softWrap: false),
+                )
+              : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
         if (trailing != null) ...[const SizedBox(width: 8), trailing!],
       ],
