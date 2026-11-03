@@ -215,7 +215,10 @@ void main() {
     await tester.tap(find.text('Crear tarea'));
     await tester.pumpAndSettle();
     expect(find.byType(SeedlyModal), findsNothing);
-    expect(find.text('Crear tarea aún no disponible'), findsOneWidget);
+    // The task form opens, asking for a project.
+    expect(find.text('Nueva tarea'), findsOneWidget);
+    expect(find.text('Elige un proyecto'), findsOneWidget);
+    expect(find.text('Crear tarea aún no disponible'), findsNothing);
   });
 
   testWidgets('closing the add modal shows no notice', (tester) async {

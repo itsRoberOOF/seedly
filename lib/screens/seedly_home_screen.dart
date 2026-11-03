@@ -17,6 +17,7 @@ import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_busy_overlay.dart';
 import '../widgets/seedly_menu.dart';
+import 'seedly_add_task_view.dart';
 import 'seedly_create_project_view.dart';
 import 'seedly_inicio_view.dart';
 import 'seedly_login_screen.dart';
@@ -74,6 +75,9 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
   /// The project form being filled in, if any.
   SeedlyProjectKind? _creating;
 
+  /// Whether "Crear tarea" (a task for an existing project) is open.
+  bool _addingTask = false;
+
   @override
   void initState() {
     super.initState();
@@ -130,6 +134,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
     hideSeedlyAlert();
     setState(() {
       _creating = null;
+      _addingTask = false;
       _projectToOpen = projectId;
       _openRequest++;
       _active = SeedlyMenuTab.proyectos;
@@ -197,17 +202,26 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       case SeedlyAddOption.expressProject:
         setState(() => _creating = SeedlyProjectKind.express);
       case SeedlyAddOption.task:
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text('${option.title} aún no disponible')),
-          );
+        setState(() => _addingTask = true);
     }
   }
 
   void _closeForm() {
     hideSeedlyAlert();
-    setState(() => _creating = null);
+    setState(() {
+      _creating = null;
+      _addingTask = false;
+    });
+  }
+
+  void _taskCreated(SeedlyProject project, NewSeedlyTask task) {
+    setState(() => _addingTask = false);
+    showSeedlyAlert(
+      context,
+      style: SeedlyAlertStyle.success,
+      title: 'Tarea creada',
+      message: '«${task.title}» ya está en «${project.name}».',
+    );
   }
 
   void _created(NewSeedlyProject project, SeedlyProjectSave save) {
@@ -261,6 +275,15 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
                   ? null
                   : _requestReminderPermission,
             )
+          : _addingTask
+          ? SeedlyAddTaskView(
+              projects: widget.projects,
+              onClose: _closeForm,
+              onCreated: _taskCreated,
+              onReminderSelected: widget.notifications == null
+                  ? null
+                  : _requestReminderPermission,
+            )
           : _active == SeedlyMenuTab.perfil
           ? SeedlyProfileView(
               profile: widget.auth.currentUser,
@@ -301,7 +324,7 @@ class _SeedlyHomeScreenState extends State<SeedlyHomeScreen> {
       bottomNavigationBar: SeedlyMenu(
         active: _active,
         onSelected: (tab) {
-          if (_creating != null) _closeForm();
+          if (_creating != null || _addingTask) _closeForm();
           setState(() {
             _active = tab;
             // Opening Proyectos from the menu starts at the catalog.

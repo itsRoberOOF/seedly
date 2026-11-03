@@ -142,3 +142,12 @@ Inicio muestra los proyectos sin terminar (`!isComplete`), con su avance, y las 
   ajustar los contadores de los dos proyectos en el mismo batch.
 - Los datos de las capturas de Figma ("Proyecto UI/UX", 50 %…) son ejemplos; de ahí se copia la
   estructura y el estilo, no el contenido.
+
+## Crear tarea desde el menú +
+
+La opción **+ → Crear tarea** abre `SeedlyAddTaskView` (`lib/screens/seedly_add_task_view.dart`): la pantalla
+"Nueva tarea" con el campo *Proyecto \** elegible. Al tocarlo se abre "Modal proyectos"
+(`lib/modals/seedly_project_modal.dart`: buscador y la lista de proyectos con su avance). Guardar sin proyecto
+se rechaza; con él llama a `SeedlyProjectRepository.addTask`. `SeedlyCreateTaskView` sigue sirviendo a las
+tareas de un proyecto que se está creando o editando, donde el proyecto es fijo: solo se activa la elección
+con `onPickProject`. El tag amarillo de entrega se compartió en `lib/widgets/seedly_deadline_tag.dart`.

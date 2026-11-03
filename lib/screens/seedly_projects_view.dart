@@ -13,6 +13,7 @@ import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
 import '../widgets/seedly_button.dart';
+import '../widgets/seedly_deadline_tag.dart';
 import '../widgets/seedly_search_bar.dart';
 import '../widgets/seedly_segmented_control.dart';
 import 'seedly_project_detail_view.dart';
@@ -235,22 +236,10 @@ class _ProjectCard extends StatelessWidget {
   final VoidCallback onOpen;
   final void Function(SeedlyTask task, bool done) onToggleTask;
 
-  /// The yellow tag over the name: "1 día para la entrega", only while the
-  /// project is not done and its end is near or past.
-  String? get _deadline {
-    final end = project.endDate;
-    if (end == null || project.isComplete) return null;
-    final days = SeedlyDates.day(end).difference(today).inDays;
-    if (days < 0) return 'Entrega vencida';
-    if (days == 0) return 'Hoy es la entrega';
-    if (days > 7) return null;
-    return days == 1 ? '1 día para la entrega' : '$days días para la entrega';
-  }
-
   @override
   Widget build(BuildContext context) {
     final percent = (project.progress * 100).round();
-    final deadline = _deadline;
+    final deadline = seedlyDeadlineLabel(project, today);
     final gray12 = TextStyle(
       fontSize: 12,
       height: 16 / 12,
@@ -279,7 +268,8 @@ class _ProjectCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (expanded && deadline != null) _Tag(deadline),
+                        if (expanded && deadline != null)
+                          SeedlyDeadlineTag(deadline),
                         Text(
                           project.name,
                           maxLines: 1,
@@ -470,48 +460,6 @@ class _PendingTasksState extends State<_PendingTasks> {
       },
     );
   }
-}
-
-/// The yellow delivery tag.
-class _Tag extends StatelessWidget {
-  const _Tag(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: SeedlyPalette.warning[600],
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 4,
-        children: [
-          SvgPicture.asset(
-            'assets/images/icon_warning_triangle.svg',
-            width: 16,
-            height: 16,
-          ),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                height: 14 / 10,
-                fontWeight: FontWeight.w600,
-                color: SeedlyPalette.neutral[850],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 /// The project's 48px tile: its photo, or its icon on grey.
