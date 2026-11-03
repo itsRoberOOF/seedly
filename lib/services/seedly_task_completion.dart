@@ -34,6 +34,27 @@ class SeedlyTaskCompletion {
     }
   }
 
+  /// Moves [task] to [newProjectId], applying [changes] and keeping its done
+  /// state. Its own reward drop travels with it (inside the repository's
+  /// batch); here, if the move completes the destination project, that
+  /// project's reward is paid too, as marking its last task done would.
+  /// Throws [SeedlyProjectException] if the task itself can't be moved.
+  Future<void> move(
+    SeedlyTask task,
+    String newProjectId,
+    NewSeedlyTask changes,
+  ) async {
+    await projects.moveTask(task.id, newProjectId, changes);
+    final drops = this.drops;
+    if (drops == null) return;
+    try {
+      // Pays only if the destination now has 3+ tasks, all done, and once.
+      await drops.addProjectDrops(newProjectId);
+    } on SeedlyDropsException {
+      // The task moved; its project reward can be settled by toggling a task.
+    }
+  }
+
   /// Deletes [task], taking back the drops it had earned.
   /// Throws [SeedlyProjectException] if the task can't be deleted.
   Future<void> delete(SeedlyTask task) async {

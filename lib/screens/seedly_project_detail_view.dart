@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../modals/seedly_delete_modal.dart';
+import '../modals/seedly_project_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
 import '../repositories/seedly_drops_repository.dart';
@@ -89,6 +90,10 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
     drops: widget.drops,
   );
   _Editing? _editing;
+
+  /// While editing a task, the project to move it to, or null to keep it in
+  /// its own. Picked through "Proyecto", as when creating a task from scratch.
+  SeedlyProject? _taskTargetProject;
   var _filter = _Filter.all;
 
   void _fail(String title, Object error) {
@@ -147,15 +152,38 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
   Future<void> _saveTask(SeedlyProject project, NewSeedlyTask task) async {
     final editing = _editing;
     final existing = editing is _EditingTask ? editing.task : null;
+    final target = _taskTargetProject;
     try {
       if (existing == null) {
         await widget.projects.addTask(project.id, task);
+      } else if (target != null && target.id != existing.projectId) {
+        await _completion.move(existing, target.id, task);
       } else {
         await widget.projects.updateTask(existing.id, task);
       }
-      if (mounted) setState(() => _editing = _afterTask);
+      if (mounted) {
+        setState(() {
+          _editing = _afterTask;
+          _taskTargetProject = null;
+        });
+      }
     } on SeedlyProjectException catch (error) {
       _fail('No se pudo guardar la tarea', error);
+    }
+  }
+
+  /// Opens "Modal proyectos" to move the task being edited; [base] is the
+  /// project it currently sits in. Choosing [base] again means "don't move".
+  Future<void> _pickTaskProject(SeedlyProject base) async {
+    hideSeedlyAlert();
+    final chosen = await showSeedlyProjectModal(
+      context,
+      projects: widget.projects.watchProjects(),
+      selected: _taskTargetProject ?? base,
+      today: widget.today,
+    );
+    if (chosen != null && mounted) {
+      setState(() => _taskTargetProject = chosen.id == base.id ? null : chosen);
     }
   }
 
@@ -168,6 +196,7 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
     setState(() {
       _afterTask = from;
       _editing = _EditingTask(task);
+      _taskTargetProject = null;
     });
   }
 
@@ -184,6 +213,7 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
       if (_editing is _EditingTask) {
         _editing = _afterTask;
         _afterTask = null;
+        _taskTargetProject = null;
       } else {
         _editing = null;
       }
@@ -235,25 +265,34 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
               onDeleteTask: _deleteTask,
               onToggleTask: _toggle,
             ),
-            final _EditingTask editing => SeedlyCreateTaskView(
-              key: ObjectKey(editing),
-              projectName: project.name,
-              projectIcon: project.icon.asset,
-              projectPhoto: project.photo,
-              initial: editing.task == null
-                  ? null
-                  : NewSeedlyTask(
-                      editing.task!.title,
-                      done: editing.task!.done,
-                      dueDate: editing.task!.dueDate,
-                      dueMinutes: editing.task!.dueMinutes,
-                      reminderMinutes: editing.task!.reminderMinutes,
-                    ),
-              today: widget.today,
-              onClose: _back,
-              onSave: (task) => _saveTask(project, task),
-              onReminderSelected: widget.onReminderSelected,
-            ),
+            final _EditingTask editing => () {
+              // While editing, "Proyecto" can move the task; show the chosen
+              // destination. A new task stays in this project.
+              final shown = _taskTargetProject ?? project;
+              return SeedlyCreateTaskView(
+                key: ObjectKey(editing),
+                projectName: shown.name,
+                projectIcon: shown.icon.asset,
+                projectPhoto: shown.photo,
+                initial: editing.task == null
+                    ? null
+                    : NewSeedlyTask(
+                        editing.task!.title,
+                        done: editing.task!.done,
+                        dueDate: editing.task!.dueDate,
+                        dueMinutes: editing.task!.dueMinutes,
+                        reminderMinutes: editing.task!.reminderMinutes,
+                      ),
+                today: widget.today,
+                onClose: _back,
+                onSave: (task) => _saveTask(project, task),
+                onReminderSelected: widget.onReminderSelected,
+                // Only an existing task can be moved; a new one belongs here.
+                onPickProject: editing.task == null
+                    ? null
+                    : () => _pickTaskProject(project),
+              );
+            }(),
             null => _detail(context, project),
           },
         );

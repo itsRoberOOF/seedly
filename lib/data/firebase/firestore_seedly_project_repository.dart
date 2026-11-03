@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../models/seedly_drops.dart';
 import '../../models/seedly_errors.dart';
 import '../../models/seedly_project.dart';
 import '../../repositories/seedly_auth_repository.dart';
@@ -230,6 +231,82 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
         'dueMinutes': task.dueMinutes,
         'reminderMinutes': task.reminderMinutes,
       });
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> moveTask(
+    String taskId,
+    String newProjectId,
+    NewSeedlyTask task,
+  ) async {
+    final uid = _requireUser();
+    final oldRef = _firestore.collection('tasks').doc(taskId);
+    final old = await _readOwned(oldRef, uid);
+    final oldProjectId = old['projectId'] as String;
+    // Same project: nothing to move, just apply the edited fields.
+    if (oldProjectId == newProjectId) {
+      await updateTask(taskId, task);
+      return;
+    }
+    final newProjectRef = _firestore.collection('projects').doc(newProjectId);
+    await _readOwned(newProjectRef, uid);
+    final oldProjectRef = _firestore.collection('projects').doc(oldProjectId);
+
+    // Append to the end of the destination, like addTask.
+    final siblings = await _guard(
+      () => _tasks(uid).where('projectId', isEqualTo: newProjectId).get(),
+    );
+    final order =
+        siblings.docs.fold<int>(-1, (highest, doc) {
+          final value = doc.data()['order'] as int;
+          return value > highest ? value : highest;
+        }) +
+        1;
+
+    // The database won't let a task change project in place, so recreate it.
+    final done = old['done'] == true;
+    final newRef = _firestore.collection('tasks').doc();
+
+    // Carry the reward drop over only if it was actually paid, so the total
+    // stays the same. Its id is `task_<taskId>`.
+    final oldDropRef = _firestore.collection('drops').doc('task_$taskId');
+    final hasDrop = done && (await _guard(oldDropRef.get)).exists;
+
+    final batch = _firestore.batch()
+      ..set(newRef, {
+        'ownerId': uid,
+        'projectId': newProjectId,
+        'title': task.title,
+        'done': done,
+        'order': order,
+        'dueDate': _timestamp(task.dueDate),
+        'dueMinutes': task.dueMinutes,
+        'reminderMinutes': task.reminderMinutes,
+        'createdAt': FieldValue.serverTimestamp(),
+      })
+      ..delete(oldRef)
+      ..update(oldProjectRef, {
+        'taskCount': FieldValue.increment(-1),
+        if (done) 'doneCount': FieldValue.increment(-1),
+      })
+      ..update(newProjectRef, {
+        'taskCount': FieldValue.increment(1),
+        if (done) 'doneCount': FieldValue.increment(1),
+      });
+    if (hasDrop) {
+      // The rules read the new task (done, in this same batch) and the old
+      // one's absence through getAfter, so both drop writes are allowed.
+      batch
+        ..delete(oldDropRef)
+        ..set(_firestore.collection('drops').doc('task_${newRef.id}'), {
+          'ownerId': uid,
+          'source': SeedlyDropSource.task.name,
+          'refId': newRef.id,
+          'amount': SeedlyDrops.perTask,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+    }
     await _commit(batch);
   }
 
