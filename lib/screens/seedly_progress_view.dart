@@ -188,10 +188,9 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final scale = _layoutScale;
-        final top = math.max(
-          12.0,
-          48 * scale - MediaQuery.paddingOf(context).top,
-        );
+        // Header sits at Figma's 48px top, matching Proyectos and Riego,
+        // instead of scaling up the gap on narrow screens.
+        final top = math.max(24.0, 48 - MediaQuery.paddingOf(context).top);
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -369,10 +368,12 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
         ),
       ],
     ),
-    _PlantSlot(plant.phase),
+    _PlantSlot(plant.phase, scale: 0.85),
     Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // A touch of breathing room so the card isn't cramped under the plant.
+        SizedBox(height: 24 * _layoutScale),
         _dropsCard(
           value: plant.nextGoal ?? plant.totalDrops,
           label: plant.nextGoal == null
@@ -473,16 +474,24 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
 }
 
 class _PlantSlot extends StatelessWidget {
-  const _PlantSlot(this.phase);
+  const _PlantSlot(this.phase, {this.scale = 1.0});
   final int phase;
+
+  /// Shrinks the whole slot (blob + plant); the growth screen uses < 1.
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
-    final scale = math.min(1.0, MediaQuery.sizeOf(context).width / 440);
-    final width = math.max(
-      1.0,
-      math.min(300 * scale, MediaQuery.sizeOf(context).width - 64 * scale),
-    );
+    final layoutScale = math.min(1.0, MediaQuery.sizeOf(context).width / 440);
+    final width =
+        math.max(
+          1.0,
+          math.min(
+            300 * layoutScale,
+            MediaQuery.sizeOf(context).width - 64 * layoutScale,
+          ),
+        ) *
+        scale;
     final plantScale = width / 300;
     return SizedBox(
       width: width,
