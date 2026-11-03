@@ -99,7 +99,8 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
             return y.compareTo(x);
           });
           return [for (final entry in entries) entry.project];
-        });
+        })
+        .handleError(_asLoadFailure);
   }
 
   @override
@@ -126,15 +127,189 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
     );
   }
 
-  Query<Map<String, dynamic>> _tasks(String ownerId) =>
-      _firestore.collection('tasks').where('ownerId', isEqualTo: ownerId);
+  @override
+  Stream<SeedlyProject?> watchProject(String projectId) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
+    return _firestore
+        .collection('projects')
+        .where('ownerId', isEqualTo: ownerId)
+        .where(FieldPath.documentId, isEqualTo: projectId)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.isEmpty ? null : _projectOf(snapshot.docs.single),
+        )
+        .handleError(_asLoadFailure);
+  }
 
-  Stream<List<SeedlyTask>> _watchTasks(Query<Map<String, dynamic>> query) =>
-      query.snapshots().map((snapshot) {
-        final tasks = [for (final doc in snapshot.docs) _taskOf(doc)];
-        tasks.sort(_compareTasks);
-        return tasks;
+  @override
+  Stream<List<SeedlyTask>> watchTasks(String projectId) {
+    final ownerId = _auth.currentUserId;
+    if (ownerId == null) return const Stream.empty();
+    return _watchTasks(_tasks(ownerId).where('projectId', isEqualTo: projectId))
+        .handleError(_asLoadFailure);
+  }
+
+  @override
+  Future<void> updateProject(
+    String projectId,
+    SeedlyProjectChanges changes,
+  ) async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('projects').doc(projectId);
+    await _readOwned(ref, uid);
+    final batch = _firestore.batch()
+      ..update(ref, {
+        'name': changes.name,
+        'description': changes.description,
+        'icon': changes.icon.name,
+        'photo': changes.photo == null ? null : Blob(changes.photo!),
+        'startDate': _timestamp(changes.startDate),
+        'endDate': _timestamp(changes.endDate),
       });
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> deleteProject(String projectId) async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('projects').doc(projectId);
+    await _readOwned(ref, uid);
+    final tasks = await _guard(
+      () => _tasks(uid).where('projectId', isEqualTo: projectId).get(),
+    );
+    final batch = _firestore.batch();
+    for (final task in tasks.docs) {
+      batch.delete(task.reference);
+    }
+    batch.delete(ref);
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> addTask(String projectId, NewSeedlyTask task) async {
+    final uid = _requireUser();
+    final projectRef = _firestore.collection('projects').doc(projectId);
+    await _readOwned(projectRef, uid);
+    final siblings = await _guard(
+      () => _tasks(uid).where('projectId', isEqualTo: projectId).get(),
+    );
+    final order = siblings.docs.fold<int>(-1, (highest, doc) {
+      final value = doc.data()['order'] as int;
+      return value > highest ? value : highest;
+    });
+    final batch = _firestore.batch()
+      ..set(_firestore.collection('tasks').doc(), {
+        'ownerId': uid,
+        'projectId': projectId,
+        'title': task.title,
+        'done': task.done,
+        'order': order + 1,
+        'dueDate': _timestamp(task.dueDate),
+        'dueMinutes': task.dueMinutes,
+        'reminderMinutes': task.reminderMinutes,
+        'createdAt': FieldValue.serverTimestamp(),
+      })
+      ..update(projectRef, {
+        'taskCount': FieldValue.increment(1),
+        if (task.done) 'doneCount': FieldValue.increment(1),
+      });
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> updateTask(String taskId, NewSeedlyTask task) async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('tasks').doc(taskId);
+    await _readOwned(ref, uid);
+    final batch = _firestore.batch()
+      ..update(ref, {
+        'title': task.title,
+        'dueDate': _timestamp(task.dueDate),
+        'dueMinutes': task.dueMinutes,
+        'reminderMinutes': task.reminderMinutes,
+      });
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> deleteTask(String taskId) async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('tasks').doc(taskId);
+    final data = await _readOwned(ref, uid);
+    final batch = _firestore.batch()
+      ..delete(ref)
+      ..update(
+        _firestore.collection('projects').doc(data['projectId'] as String),
+        {
+          'taskCount': FieldValue.increment(-1),
+          if (data['done'] == true) 'doneCount': FieldValue.increment(-1),
+        },
+      );
+    await _commit(batch);
+  }
+
+  @override
+  Future<void> setTaskDone(String taskId, bool done) async {
+    final uid = _requireUser();
+    final ref = _firestore.collection('tasks').doc(taskId);
+    final data = await _readOwned(ref, uid);
+    if (data['done'] == done) return;
+    final batch = _firestore.batch()
+      ..update(ref, {'done': done})
+      ..update(
+        _firestore.collection('projects').doc(data['projectId'] as String),
+        {'doneCount': FieldValue.increment(done ? 1 : -1)},
+      );
+    await _commit(batch);
+  }
+
+  String _requireUser() {
+    final uid = _auth.currentUserId;
+    if (uid == null) {
+      throw const SeedlyProjectException(SeedlyProjectError.sessionExpired);
+    }
+    return uid;
+  }
+
+  /// Reads a document of this owner; a missing one, or someone else's, is
+  /// [SeedlyProjectError.notFound]. Offline it answers from the local cache.
+  Future<Map<String, dynamic>> _readOwned(
+    DocumentReference<Map<String, dynamic>> ref,
+    String uid,
+  ) async {
+    final snapshot = await _guard(ref.get);
+    final data = snapshot.data();
+    if (data == null || data['ownerId'] != uid) {
+      throw const SeedlyProjectException(SeedlyProjectError.notFound);
+    }
+    return data;
+  }
+
+  Future<T> _guard<T>(Future<T> Function() read) async {
+    try {
+      return await read();
+    } on FirebaseException {
+      throw const SeedlyProjectException(SeedlyProjectError.saveFailed);
+    }
+  }
+
+  /// Offline the batch is already in the local cache and syncs later, but
+  /// commit() only completes once the server answers; waiting longer
+  /// than [_serverWait] counts as saved.
+  Future<void> _commit(WriteBatch batch) async {
+    try {
+      await batch.commit().timeout(_serverWait);
+    } on TimeoutException {
+      // Queued locally; Firestore syncs it when the connection returns.
+    } on FirebaseException {
+      throw const SeedlyProjectException(SeedlyProjectError.saveFailed);
+    }
+  }
+
+  static Never _asLoadFailure(Object error) =>
+      throw const SeedlyProjectException(SeedlyProjectError.loadFailed);
 
   static SeedlyProject _projectOf(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
@@ -144,17 +319,27 @@ class FirestoreSeedlyProjectRepository implements SeedlyProjectRepository {
       id: document.id,
       name: data['name'] as String,
       kind: SeedlyProjectKind.values.byName(data['kind'] as String),
-      // An icon this version does not know falls back to the default.
+      description: data['description'] as String?,
       icon:
           SeedlyProjectIcon.values.asNameMap()[data['icon']] ??
           SeedlyProjectIcon.planta,
-      description: data['description'] as String?,
+      photo: (data['photo'] as Blob?)?.bytes,
       startDate: (data['startDate'] as Timestamp?)?.toDate().toLocal(),
       endDate: (data['endDate'] as Timestamp?)?.toDate().toLocal(),
       taskCount: data['taskCount'] as int,
       doneCount: data['doneCount'] as int,
     );
   }
+
+  Query<Map<String, dynamic>> _tasks(String ownerId) =>
+      _firestore.collection('tasks').where('ownerId', isEqualTo: ownerId);
+
+  Stream<List<SeedlyTask>> _watchTasks(Query<Map<String, dynamic>> query) =>
+      query.snapshots().map((snapshot) {
+        final tasks = [for (final doc in snapshot.docs) _taskOf(doc)];
+        tasks.sort(_compareTasks);
+        return tasks;
+      });
 
   static SeedlyTask _taskOf(
     QueryDocumentSnapshot<Map<String, dynamic>> document,

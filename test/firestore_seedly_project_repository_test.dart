@@ -282,4 +282,258 @@ void main() {
       expect(tasks.map((task) => task.id), ['future']);
     },
   );
+
+  group('reading', () {
+    Future<void> seedProject(
+      String id, {
+      String owner = 'ana',
+      int tasks = 0,
+    }) => firestore.collection('projects').doc(id).set({
+      'ownerId': owner,
+      'name': 'Proyecto $id',
+      'kind': 'full',
+      'icon': 'hogar',
+      'taskCount': tasks,
+      'doneCount': 0,
+    });
+
+    test('watchProjects lists only the owner\'s projects', () async {
+      await seedProject('a');
+      await seedProject('b', owner: 'luis');
+      final list = await projects.watchProjects().first;
+      expect(list.map((project) => project.id), ['a']);
+      expect(list.single.name, 'Proyecto a');
+      expect(list.single.icon, SeedlyProjectIcon.hogar);
+      expect(list.single.kind, SeedlyProjectKind.full);
+    });
+
+    test('watchProject emits null when the project is missing', () async {
+      await seedProject('b', owner: 'luis');
+      expect(await projects.watchProject('b').first, isNull);
+      expect(await projects.watchProject('nope').first, isNull);
+    });
+
+    test('watchProject emits the project', () async {
+      await seedProject('a', tasks: 3);
+      final project = await projects.watchProject('a').first;
+      expect(project?.taskCount, 3);
+      expect(project?.progress, 0);
+    });
+
+    test('watchTasks returns the project\'s tasks in order', () async {
+      Future<void> task(String id, int order, {String project = 'p'}) =>
+          firestore.collection('tasks').doc(id).set({
+            'ownerId': 'ana',
+            'projectId': project,
+            'title': id,
+            'done': false,
+            'order': order,
+          });
+      await task('second', 1);
+      await task('first', 0);
+      await task('elsewhere', 0, project: 'other');
+      final tasks = await projects.watchTasks('p').first;
+      expect(tasks.map((task) => task.id), ['first', 'second']);
+    });
+  });
+
+  group('writing', () {
+    Future<String> seed({int tasks = 3, int done = 1}) async {
+      await firestore.collection('projects').doc('p').set({
+        'ownerId': 'ana',
+        'name': 'Huerto',
+        'kind': 'full',
+        'icon': 'planta',
+        'taskCount': tasks,
+        'doneCount': done,
+      });
+      for (var i = 0; i < tasks; i++) {
+        await firestore.collection('tasks').doc('t$i').set({
+          'ownerId': 'ana',
+          'projectId': 'p',
+          'title': 'Tarea $i',
+          'done': i < done,
+          'order': i,
+        });
+      }
+      return 'p';
+    }
+
+    Future<Map<String, dynamic>> project() async =>
+        (await firestore.collection('projects').doc('p').get()).data()!;
+
+    test('setTaskDone marks the task and bumps doneCount', () async {
+      await seed();
+      await projects.setTaskDone('t1', true);
+      final task = (await firestore.collection('tasks').doc('t1').get());
+      expect(task.data()!['done'], isTrue);
+      expect((await project())['doneCount'], 2);
+    });
+
+    test('setTaskDone unmarks and lowers doneCount', () async {
+      await seed();
+      await projects.setTaskDone('t0', false);
+      expect((await project())['doneCount'], 0);
+    });
+
+    test('setTaskDone with the same state changes nothing', () async {
+      await seed();
+      await projects.setTaskDone('t0', true);
+      expect((await project())['doneCount'], 1);
+    });
+
+    test('addTask appends with the next order and bumps taskCount', () async {
+      await seed();
+      await projects.addTask(
+        'p',
+        NewSeedlyTask(
+          'Cosechar',
+          dueDate: DateTime(2026, 11, 5),
+          dueMinutes: 600,
+          reminderMinutes: 10,
+        ),
+      );
+      final added =
+          (await firestore
+                  .collection('tasks')
+                  .where('title', isEqualTo: 'Cosechar')
+                  .get())
+              .docs
+              .single
+              .data();
+      expect(added['ownerId'], 'ana');
+      expect(added['projectId'], 'p');
+      expect(added['order'], 3);
+      expect(added['done'], isFalse);
+      expect(added['reminderMinutes'], 10);
+      expect((await project())['taskCount'], 4);
+      expect((await project())['doneCount'], 1);
+    });
+
+    test('addTask of a done task also bumps doneCount', () async {
+      await seed();
+      await projects.addTask('p', const NewSeedlyTask('Listo', done: true));
+      expect((await project())['taskCount'], 4);
+      expect((await project())['doneCount'], 2);
+    });
+
+    test('updateTask edits the fields but not done or the project', () async {
+      await seed();
+      await projects.updateTask(
+        't0',
+        NewSeedlyTask(
+          'Nuevo título',
+          dueDate: DateTime(2026, 11, 6),
+          dueMinutes: 480,
+          reminderMinutes: 30,
+        ),
+      );
+      final data = (await firestore.collection('tasks').doc('t0').get())
+          .data()!;
+      expect(data['title'], 'Nuevo título');
+      expect(data['done'], isTrue);
+      expect(data['projectId'], 'p');
+      expect(data['dueMinutes'], 480);
+      expect(data['reminderMinutes'], 30);
+    });
+
+    test('deleteTask lowers both counters when the task was done', () async {
+      await seed();
+      await projects.deleteTask('t0');
+      expect(
+        (await firestore.collection('tasks').doc('t0').get()).exists,
+        isFalse,
+      );
+      expect((await project())['taskCount'], 2);
+      expect((await project())['doneCount'], 0);
+    });
+
+    test('deleteTask of a pending task keeps doneCount', () async {
+      await seed();
+      await projects.deleteTask('t2');
+      expect((await project())['taskCount'], 2);
+      expect((await project())['doneCount'], 1);
+    });
+
+    test('updateProject edits the project\'s own fields', () async {
+      await seed();
+      await projects.updateProject(
+        'p',
+        SeedlyProjectChanges(
+          name: 'Jardín',
+          description: 'Más grande',
+          icon: SeedlyProjectIcon.flor,
+        ),
+      );
+      final data = await project();
+      expect(data['name'], 'Jardín');
+      expect(data['description'], 'Más grande');
+      expect(data['icon'], 'flor');
+      expect(data['taskCount'], 3);
+      expect(data['kind'], 'full');
+    });
+
+    test('deleteProject removes the project and all its tasks', () async {
+      await seed();
+      await firestore.collection('tasks').doc('mine-elsewhere').set({
+        'ownerId': 'ana',
+        'projectId': 'other',
+        'title': 'No tocar',
+        'done': false,
+        'order': 0,
+      });
+      await projects.deleteProject('p');
+      expect((await firestore.collection('projects').get()).docs, isEmpty);
+      expect(
+        (await firestore.collection('tasks').get()).docs.map((d) => d.id),
+        ['mine-elsewhere'],
+      );
+    });
+
+    test('someone else\'s task is not found', () async {
+      await firestore.collection('tasks').doc('theirs').set({
+        'ownerId': 'luis',
+        'projectId': 'p',
+        'title': 'Ajena',
+        'done': false,
+        'order': 0,
+      });
+      await expectLater(
+        projects.setTaskDone('theirs', true),
+        throwsA(
+          isA<SeedlyProjectException>().having(
+            (error) => error.reason,
+            'reason',
+            SeedlyProjectError.notFound,
+          ),
+        ),
+      );
+    });
+
+    test('without a session every write refuses', () async {
+      final signedOut = FirestoreSeedlyProjectRepository(
+        auth: FakeSeedlyAuthRepository(),
+        firestore: firestore,
+      );
+      for (final write in <Future<void> Function()>[
+        () => signedOut.setTaskDone('t', true),
+        () => signedOut.deleteTask('t'),
+        () => signedOut.deleteProject('p'),
+        () => signedOut.addTask('p', const NewSeedlyTask('x')),
+        () => signedOut.updateTask('t', const NewSeedlyTask('x')),
+        () => signedOut.updateProject('p', SeedlyProjectChanges(name: 'x')),
+      ]) {
+        await expectLater(
+          write(),
+          throwsA(
+            isA<SeedlyProjectException>().having(
+              (error) => error.reason,
+              'reason',
+              SeedlyProjectError.sessionExpired,
+            ),
+          ),
+        );
+      }
+    });
+  });
 }

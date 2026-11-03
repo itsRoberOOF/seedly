@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import {
@@ -12,6 +13,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   serverTimestamp,
   setDoc,
@@ -178,5 +180,177 @@ describe('other users', () => {
 describe('missing drops', () => {
   test('the app can read a drop before paying it', async () => {
     await assertSucceeds(getDoc(doc(ana(), 'drops/task_t1')));
+  });
+});
+
+// The writes FirestoreSeedlyProjectRepository makes: each one mirrors a
+// method there, field for field, so a rules change that breaks the app
+// fails here first.
+describe('projects and tasks', () => {
+  const project = (over = {}) => ({
+    ownerId: 'ana', name: 'Huerto', description: null, icon: 'planta',
+    photo: null, kind: 'full', startDate: null, endDate: null,
+    taskCount: 3, doneCount: 1, createdAt: Timestamp.now(), ...over,
+  });
+  const ptask = (over = {}) => ({
+    ownerId: 'ana', projectId: 'p1', title: 'Regar', done: false, order: 0,
+    dueDate: null, dueMinutes: null, reminderMinutes: null,
+    createdAt: Timestamp.now(), ...over,
+  });
+  const seedProject = async (over) => {
+    await seed('projects/p1', project(over));
+    await seed('tasks/t1', ptask());
+  };
+
+  test('setTaskDone: ticks the task and raises doneCount in one batch', async () => {
+    await seedProject();
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'tasks/t1'), { done: true });
+    batch.update(doc(db, 'projects/p1'), { doneCount: increment(1) });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('setTaskDone: unticking lowers doneCount', async () => {
+    await seedProject();
+    await seed('tasks/t1', ptask({ done: true }));
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'tasks/t1'), { done: false });
+    batch.update(doc(db, 'projects/p1'), { doneCount: increment(-1) });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('doneCount can never pass taskCount', async () => {
+    await seedProject({ taskCount: 1, doneCount: 1 });
+    await assertFails(
+      updateDoc(doc(ana(), 'projects/p1'), { doneCount: increment(1) }),
+    );
+  });
+
+  test('addTask: new task and taskCount in one batch', async () => {
+    await seedProject();
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'tasks/new'), {
+      ownerId: 'ana', projectId: 'p1', title: 'Cosechar', done: false, order: 1,
+      dueDate: Timestamp.fromDate(new Date(2026, 10, 5)), dueMinutes: 600,
+      reminderMinutes: 10, createdAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'projects/p1'), { taskCount: increment(1) });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('addTask: a done task also raises doneCount', async () => {
+    await seedProject();
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'tasks/new'), {
+      ownerId: 'ana', projectId: 'p1', title: 'Hecha', done: true, order: 1,
+      dueDate: null, dueMinutes: null, reminderMinutes: null,
+      createdAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'projects/p1'), {
+      taskCount: increment(1), doneCount: increment(1),
+    });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('addTask: refuses a task in someone else\'s project', async () => {
+    await seedProject({ ownerId: 'beto' });
+    await assertFails(
+      setDoc(doc(ana(), 'tasks/new'), { ...ptask(), createdAt: serverTimestamp() }),
+    );
+  });
+
+  test('updateTask: edits title, day, time and reminder', async () => {
+    await seedProject();
+    await assertSucceeds(
+      updateDoc(doc(ana(), 'tasks/t1'), {
+        title: 'Regar mucho',
+        dueDate: Timestamp.fromDate(new Date(2026, 10, 6)),
+        dueMinutes: 480,
+        reminderMinutes: 30,
+      }),
+    );
+  });
+
+  test('updateTask: refuses a reminder without a time, or moving projects', async () => {
+    await seedProject();
+    await assertFails(updateDoc(doc(ana(), 'tasks/t1'), { reminderMinutes: 30 }));
+    await assertFails(updateDoc(doc(ana(), 'tasks/t1'), { projectId: 'other' }));
+  });
+
+  test('deleteTask: removes it and lowers the counters in one batch', async () => {
+    await seedProject();
+    await seed('tasks/t1', ptask({ done: true }));
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'tasks/t1'));
+    batch.update(doc(db, 'projects/p1'), {
+      taskCount: increment(-1), doneCount: increment(-1),
+    });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('updateProject: edits its own fields, not createdAt', async () => {
+    await seedProject();
+    await assertSucceeds(
+      updateDoc(doc(ana(), 'projects/p1'), {
+        name: 'Jardín', description: 'Más grande', icon: 'flor',
+        photo: null, startDate: null, endDate: null,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(ana(), 'projects/p1'), { createdAt: Timestamp.now() }),
+    );
+  });
+
+  test('updateProject: refuses an end before the start', async () => {
+    await seedProject();
+    await assertFails(
+      updateDoc(doc(ana(), 'projects/p1'), {
+        startDate: Timestamp.fromDate(new Date(2026, 10, 10)),
+        endDate: Timestamp.fromDate(new Date(2026, 10, 1)),
+      }),
+    );
+  });
+
+  test('deleteProject: removes the project and all its tasks in one batch', async () => {
+    await seedProject();
+    await seed('tasks/t2', ptask({ order: 1 }));
+    const db = ana();
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'tasks/t1'));
+    batch.delete(doc(db, 'tasks/t2'));
+    batch.delete(doc(db, 'projects/p1'));
+    await assertSucceeds(batch.commit());
+  });
+
+  test('the catalog queries filter by owner and work; others are refused', async () => {
+    await seedProject();
+    await seed('projects/p2', project({ ownerId: 'beto' }));
+    const mine = await assertSucceeds(
+      getDocs(query(collection(ana(), 'projects'), where('ownerId', '==', 'ana'))),
+    );
+    assert.equal(mine.size, 1);
+    await assertFails(getDocs(collection(ana(), 'projects')));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(ana(), 'tasks'),
+          where('ownerId', '==', 'ana'),
+          where('projectId', '==', 'p1'),
+        ),
+      ),
+    );
+  });
+
+  test('another user can neither edit nor delete my project or task', async () => {
+    await seedProject();
+    await assertFails(updateDoc(doc(beto(), 'projects/p1'), { name: 'Mío' }));
+    await assertFails(deleteDoc(doc(beto(), 'projects/p1')));
+    await assertFails(updateDoc(doc(beto(), 'tasks/t1'), { done: true }));
+    await assertFails(deleteDoc(doc(beto(), 'tasks/t1')));
   });
 });

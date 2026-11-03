@@ -12,6 +12,8 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
     this.projects = const Stream.empty(),
     this.tasksOn = const Stream.empty(),
     this.tasksFrom = const Stream.empty(),
+    this.projectById = const Stream.empty(),
+    this.tasksOfProject = const Stream.empty(),
   });
 
   /// Thrown by [create] when set.
@@ -29,7 +31,19 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   /// Tasks emitted by [watchTasksFrom] in screen tests.
   Stream<List<SeedlyTask>> tasksFrom;
 
+  /// Emitted by [watchProject] and [watchTasks] in screen tests.
+  Stream<SeedlyProject?> projectById;
+  Stream<List<SeedlyTask>> tasksOfProject;
+
   final created = <NewSeedlyProject>[];
+
+  /// Every call of the write methods below, in order, for tests to assert.
+  final updatedProjects = <(String, SeedlyProjectChanges)>[];
+  final deletedProjects = <String>[];
+  final addedTasks = <(String, NewSeedlyTask)>[];
+  final updatedTasks = <(String, NewSeedlyTask)>[];
+  final deletedTasks = <String>[];
+  final doneChanges = <(String, bool)>[];
 
   @override
   Future<SeedlyProjectSave> create(NewSeedlyProject project) async {
@@ -41,6 +55,8 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   final _projectsWatch = _Watch<List<SeedlyProject>>();
   final _tasksOnWatch = _Watch<List<SeedlyTask>>();
   final _tasksFromWatch = _Watch<List<SeedlyTask>>();
+  final _projectWatch = _Watch<SeedlyProject?>();
+  final _tasksOfProjectWatch = _Watch<List<SeedlyTask>>();
 
   @override
   Stream<List<SeedlyProject>> watchProjects() => _projectsWatch.of(projects);
@@ -52,6 +68,53 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   @override
   Stream<List<SeedlyTask>> watchTasksFrom(DateTime day) =>
       _tasksFromWatch.of(tasksFrom);
+
+  @override
+  Stream<SeedlyProject?> watchProject(String projectId) =>
+      _projectWatch.of(projectById);
+
+  @override
+  Stream<List<SeedlyTask>> watchTasks(String projectId) =>
+      _tasksOfProjectWatch.of(tasksOfProject);
+
+  @override
+  Future<void> updateProject(
+    String projectId,
+    SeedlyProjectChanges changes,
+  ) async {
+    if (error != null) throw error!;
+    updatedProjects.add((projectId, changes));
+  }
+
+  @override
+  Future<void> deleteProject(String projectId) async {
+    if (error != null) throw error!;
+    deletedProjects.add(projectId);
+  }
+
+  @override
+  Future<void> addTask(String projectId, NewSeedlyTask task) async {
+    if (error != null) throw error!;
+    addedTasks.add((projectId, task));
+  }
+
+  @override
+  Future<void> updateTask(String taskId, NewSeedlyTask task) async {
+    if (error != null) throw error!;
+    updatedTasks.add((taskId, task));
+  }
+
+  @override
+  Future<void> deleteTask(String taskId) async {
+    if (error != null) throw error!;
+    deletedTasks.add(taskId);
+  }
+
+  @override
+  Future<void> setTaskDone(String taskId, bool done) async {
+    if (error != null) throw error!;
+    doneChanges.add((taskId, done));
+  }
 }
 
 /// Firestore gives every listener the current value, so each call replays
