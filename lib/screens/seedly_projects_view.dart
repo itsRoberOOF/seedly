@@ -67,8 +67,10 @@ class _SeedlyProjectsViewState extends State<SeedlyProjectsView> {
 
   void _retry() => setState(() => _stream = widget.projects.watchProjects());
 
+  final _dropsToaster = SeedlyDropsToaster();
+
   Future<void> _toggleTask(SeedlyTask task, bool done) {
-    return completeSeedlyTask(
+    return _dropsToaster.complete(
       context,
       _completion,
       task,

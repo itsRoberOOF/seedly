@@ -232,16 +232,13 @@ void main() {
       expect(drops.paid.keys, contains('task_t2'));
     });
 
-    testWidgets('completing a task shows one instant drops toast', (
+    testWidgets('completing a task shows one accurate drops toast', (
       tester,
     ) async {
       await openDetail(tester);
       await tester.tap(find.text('Regar'));
-      // Shown on the same frame as the tap, before the write settles, and only
-      // ever one at a time.
-      await tester.pump();
-      expect(find.textContaining('gotas'), findsOneWidget);
       await tester.pumpAndSettle();
+      // A single toast that reflects what was paid, never a figure that flips.
       expect(find.textContaining('gotas'), findsOneWidget);
     });
 

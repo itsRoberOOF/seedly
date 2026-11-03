@@ -109,8 +109,10 @@ class _SeedlyProjectDetailViewState extends State<SeedlyProjectDetailView> {
     );
   }
 
+  final _dropsToaster = SeedlyDropsToaster();
+
   Future<void> _toggle(SeedlyTask task, bool done) {
-    return completeSeedlyTask(
+    return _dropsToaster.complete(
       context,
       _completion,
       task,

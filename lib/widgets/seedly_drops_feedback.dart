@@ -1,50 +1,48 @@
 import 'package:flutter/widgets.dart';
 
-import '../models/seedly_drops.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
 import '../services/seedly_task_completion.dart';
 import 'seedly_alert.dart';
 
-/// Marks [task] done/undone and gives instant drop feedback.
+/// Shows a single, accurate drops toast when a task is completed.
 ///
-/// The success toast shows the moment the task is tapped, so it never waits on
-/// the network. When the write settles it is reconciled with the drops actually
-/// paid: hidden when nothing was (the daily cap, or a task already rewarded) and
-/// upgraded when the task also finished its project. A failed save replaces it
-/// with an error toast via [onError]. Toasts always replace each other, and
-/// unmarking shows none.
-Future<void> completeSeedlyTask(
-  BuildContext context,
-  SeedlyTaskCompletion completion,
-  SeedlyTask task, {
-  required bool done,
-  required void Function(Object error) onError,
-}) async {
-  const optimistic = (task: SeedlyDrops.perTask, project: 0);
-  if (done) {
-    _showEarned(context, optimistic);
-  } else {
-    // Unmarking earns nothing; clear any toast still on screen.
-    hideSeedlyAlert();
-  }
-  try {
-    final earned = await completion.setDone(task, done);
-    // Nothing to correct when we're unmarking or the guess was already right.
-    if (!context.mounted || !done || earned == optimistic) return;
-    _showEarned(context, earned);
-  } on SeedlyProjectException catch (error) {
-    if (!context.mounted) return;
-    onError(error);
+/// The toast reflects the drops that were actually paid, so it never shows a
+/// figure that then changes (a task that also finishes its project reads "+13"
+/// once, not "+3" then "+13"), and it stays silent when nothing was earned: the
+/// daily cap, an already-rewarded task, or an already-paid project. Toggling the
+/// same task again before the write settles cancels the pending toast, so
+/// marking and quickly unmarking never leaves a reward that wasn't given.
+///
+/// One screen keeps one [SeedlyDropsToaster].
+class SeedlyDropsToaster {
+  int _token = 0;
+
+  Future<void> complete(
+    BuildContext context,
+    SeedlyTaskCompletion completion,
+    SeedlyTask task, {
+    required bool done,
+    required void Function(Object error) onError,
+  }) async {
+    final token = ++_token;
+    // Unmarking earns nothing; drop any toast still on screen right away.
+    if (!done) hideSeedlyAlert();
+    try {
+      final earned = await completion.setDone(task, done);
+      // A newer toggle has taken over, or the screen is gone.
+      if (!context.mounted || token != _token) return;
+      if (done) _show(context, earned);
+    } on SeedlyProjectException catch (error) {
+      if (!context.mounted || token != _token) return;
+      onError(error);
+    }
   }
 }
 
-void _showEarned(BuildContext context, SeedlyDropsEarned earned) {
+void _show(BuildContext context, SeedlyDropsEarned earned) {
   final toast = seedlyDropsEarnedToast(earned);
-  if (toast == null) {
-    hideSeedlyAlert();
-    return;
-  }
+  if (toast == null) return;
   showSeedlyAlert(
     context,
     style: SeedlyAlertStyle.success,
