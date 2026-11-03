@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedly/models/seedly_drops.dart';
 import 'package:seedly/models/seedly_errors.dart';
@@ -9,6 +10,7 @@ import 'package:seedly/screens/seedly_home_screen.dart';
 import 'package:seedly/screens/seedly_progress_view.dart';
 import 'package:seedly/theme/seedly_theme.dart';
 import 'package:seedly/widgets/seedly_alert.dart';
+import 'package:seedly/widgets/seedly_button.dart';
 import 'package:seedly/widgets/seedly_menu.dart';
 import 'package:seedly/widgets/seedly_plant.dart';
 
@@ -100,6 +102,76 @@ void main() {
     expect(find.text('1,200'), findsOneWidget);
     expect(find.text('Tu próxima meta'), findsOneWidget);
     expect(tester.widget<SeedlyPlant>(find.byType(SeedlyPlant)).phase, 3);
+  });
+
+  testWidgets('keeps the Figma card and button gaps on narrow screens', (
+    tester,
+  ) async {
+    await (FontLoader('Plus Jakarta Sans')..addFont(
+          rootBundle.load(
+            'assets/fonts/plus_jakarta_sans/PlusJakartaSans-Variable.ttf',
+          ),
+        ))
+        .load();
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in [360.0, 380.0, 393.0, 440.0]) {
+      final ratio = width / 440;
+      tester.view.physicalSize = Size(width, width == 440 ? 956 : 800);
+      final drops = FakeSeedlyDropsRepository(phase: 2, startingDrops: 500);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(_progress(drops));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Haz crecer tu planta'));
+      await tester.pump();
+      await tester.pump();
+
+      final growthTitle = find.text('¡Tu planta creció!');
+      expect(
+        tester.getBottomLeft(growthTitle).dy -
+            tester.getTopLeft(growthTitle).dy,
+        closeTo(48 * ratio, 0.01),
+      );
+      final goalCard = find.ancestor(
+        of: find.text('Tu próxima meta'),
+        matching: find.byType(Container),
+      );
+      expect(
+        tester.getTopLeft(find.byType(SeedlyButton)).dy -
+            tester.getBottomLeft(goalCard).dy,
+        closeTo(48 * ratio, 0.01),
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        _progress(FakeSeedlyDropsRepository(phase: 4, startingDrops: 1240)),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester
+            .getSize(
+              find.text(
+                'Tu planta alcanzó su máximo esplendor. Sigue regando para mantenerla feliz.',
+              ),
+            )
+            .height,
+        lessThanOrEqualTo(56),
+        reason: 'Ancho de pantalla: $width',
+      );
+      final maximumCard = find.ancestor(
+        of: find.text('Gotas acumuladas'),
+        matching: find.byType(Container),
+      );
+      expect(
+        tester.getTopLeft(find.byType(SeedlyButton)).dy -
+            tester.getBottomLeft(maximumCard).dy,
+        closeTo(24 * ratio, 0.01),
+      );
+    }
   });
 
   testWidgets('at the last phase shows accumulated drops without grow', (
