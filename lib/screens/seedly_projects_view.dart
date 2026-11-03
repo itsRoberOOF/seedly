@@ -12,6 +12,7 @@ import '../services/seedly_task_completion.dart';
 import '../theme/seedly_theme.dart';
 import '../utils/seedly_dates.dart';
 import '../widgets/seedly_alert.dart';
+import '../widgets/seedly_drops_feedback.dart';
 import '../widgets/seedly_button.dart';
 import '../widgets/seedly_deadline_tag.dart';
 import '../widgets/seedly_search_bar.dart';
@@ -66,27 +67,21 @@ class _SeedlyProjectsViewState extends State<SeedlyProjectsView> {
 
   void _retry() => setState(() => _stream = widget.projects.watchProjects());
 
-  Future<void> _toggleTask(SeedlyTask task, bool done) async {
-    try {
-      final earned = await _completion.setDone(task, done);
-      if (!mounted) return;
-      if (seedlyDropsEarnedToast(earned) case final toast?) {
-        showSeedlyAlert(
-          context,
-          style: SeedlyAlertStyle.success,
-          title: toast.title,
-          message: toast.message,
-        );
-      }
-    } on SeedlyProjectException catch (error) {
-      if (!mounted) return;
-      showSeedlyAlert(
+  Future<void> _toggleTask(SeedlyTask task, bool done) {
+    return completeSeedlyTask(
+      context,
+      _completion,
+      task,
+      done: done,
+      onError: (error) => showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
         title: 'No se pudo actualizar la tarea',
-        message: error.message,
-      );
-    }
+        message: error is SeedlyProjectException
+            ? error.message
+            : 'Inténtalo de nuevo en un momento.',
+      ),
+    );
   }
 
   @override

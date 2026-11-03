@@ -232,6 +232,19 @@ void main() {
       expect(drops.paid.keys, contains('task_t2'));
     });
 
+    testWidgets('completing a task shows one instant drops toast', (
+      tester,
+    ) async {
+      await openDetail(tester);
+      await tester.tap(find.text('Regar'));
+      // Shown on the same frame as the tap, before the write settles, and only
+      // ever one at a time.
+      await tester.pump();
+      expect(find.textContaining('gotas'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('gotas'), findsOneWidget);
+    });
+
     testWidgets('the filter shows pending and completed tasks', (tester) async {
       await openDetail(tester);
       expect(find.text('1 restante'), findsOneWidget);
