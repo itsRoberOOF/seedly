@@ -211,7 +211,7 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
             ),
             const SizedBox(height: 24),
             SeedlyButton(
-              label: editing ? 'Guardar tarea' : 'Crear tarea',
+              label: editing ? 'Guardar cambios' : 'Crear tarea',
               expand: true,
               leading: SvgPicture.asset(
                 editing

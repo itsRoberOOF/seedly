@@ -26,6 +26,7 @@ class SeedlyInicioView extends StatefulWidget {
     this.profile,
     this.drops,
     this.onTaskTap,
+    this.onProjectTap,
     this.onWater,
     this.onSeeProjects,
     this.onAdd,
@@ -40,6 +41,9 @@ class SeedlyInicioView extends StatefulWidget {
   /// Opens a task: Persona 1's editor, once it exists. Cards are not
   /// tappable without it.
   final void Function(String taskId)? onTaskTap;
+
+  /// Opens a project's detail from its card.
+  final void Function(String projectId)? onProjectTap;
 
   /// "Regar por 25 minutos": takes the person to Riego.
   final VoidCallback? onWater;
@@ -299,6 +303,9 @@ class _SeedlyInicioViewState extends State<SeedlyInicioView> {
                     title: project.name,
                     helper: _remaining(project),
                     progress: project.progress,
+                    onTap: widget.onProjectTap == null
+                        ? null
+                        : () => widget.onProjectTap!(project.id),
                   ),
               ],
             );
