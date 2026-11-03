@@ -474,6 +474,110 @@ void main() {
       expect(data['reminderMinutes'], 30);
     });
 
+    group('moveTask', () {
+      Future<void> seedTarget({int tasks = 1, int done = 0}) async {
+        await firestore.collection('projects').doc('p2').set({
+          'ownerId': 'ana',
+          'name': 'Jardín',
+          'kind': 'full',
+          'icon': 'flor',
+          'taskCount': tasks,
+          'doneCount': done,
+        });
+        for (var i = 0; i < tasks; i++) {
+          await firestore.collection('tasks').doc('q$i').set({
+            'ownerId': 'ana',
+            'projectId': 'p2',
+            'title': 'Otra $i',
+            'done': i < done,
+            'order': i,
+          });
+        }
+      }
+
+      Future<Map<String, dynamic>> target() async =>
+          (await firestore.collection('projects').doc('p2').get()).data()!;
+
+      Future<QueryDocumentSnapshot<Map<String, dynamic>>> movedTask() async =>
+          (await firestore
+                  .collection('tasks')
+                  .where('projectId', isEqualTo: 'p2')
+                  .where('title', isEqualTo: 'Reubicada')
+                  .get())
+              .docs
+              .single;
+
+      test('relocates a done task and fixes both projects', () async {
+        await seed(); // p: 3 tasks, t0 done
+        await seedTarget(); // p2: 1 task
+        await projects.moveTask('t0', 'p2', const NewSeedlyTask('Reubicada'));
+
+        // Gone from its old project, recreated at the end of the new one.
+        expect(
+          (await firestore.collection('tasks').doc('t0').get()).exists,
+          isFalse,
+        );
+        final moved = (await movedTask()).data();
+        expect(moved['done'], isTrue);
+        expect(moved['order'], 1);
+        expect(moved['ownerId'], 'ana');
+
+        expect((await project())['taskCount'], 2);
+        expect((await project())['doneCount'], 0);
+        expect((await target())['taskCount'], 2);
+        expect((await target())['doneCount'], 1);
+      });
+
+      test('carries the reward drop over to the new id', () async {
+        await seed();
+        await seedTarget();
+        await firestore.collection('drops').doc('task_t0').set({
+          'ownerId': 'ana',
+          'source': 'task',
+          'refId': 't0',
+          'amount': 3,
+        });
+        await projects.moveTask('t0', 'p2', const NewSeedlyTask('Reubicada'));
+
+        final newId = (await movedTask()).id;
+        expect(
+          (await firestore.collection('drops').doc('task_t0').get()).exists,
+          isFalse,
+        );
+        final drop = (await firestore
+            .collection('drops')
+            .doc('task_$newId')
+            .get());
+        expect(drop.data()!['amount'], 3);
+        expect(drop.data()!['refId'], newId);
+      });
+
+      test('a pending task moves without any drop', () async {
+        await seed();
+        await seedTarget();
+        await projects.moveTask('t2', 'p2', const NewSeedlyTask('Reubicada'));
+
+        expect((await target())['doneCount'], 0);
+        expect((await firestore.collection('drops').get()).docs, isEmpty);
+      });
+
+      test('to the same project just edits in place', () async {
+        await seed();
+        await projects.moveTask(
+          't0',
+          'p',
+          NewSeedlyTask('Reubicada', dueDate: DateTime(2026, 11, 9)),
+        );
+
+        final data = (await firestore.collection('tasks').doc('t0').get())
+            .data()!;
+        expect(data['title'], 'Reubicada');
+        expect(data['done'], isTrue); // unchanged
+        expect(data['projectId'], 'p');
+        expect((await project())['taskCount'], 3);
+      });
+    });
+
     test('deleteTask lowers both counters when the task was done', () async {
       await seed();
       await projects.deleteTask('t0');
@@ -722,6 +826,7 @@ void main() {
         () => signedOut.deleteProject('p'),
         () => signedOut.addTask('p', const NewSeedlyTask('x')),
         () => signedOut.updateTask('t', const NewSeedlyTask('x')),
+        () => signedOut.moveTask('t', 'p2', const NewSeedlyTask('x')),
         () => signedOut.updateProject('p', SeedlyProjectChanges(name: 'x')),
       ]) {
         await expectLater(

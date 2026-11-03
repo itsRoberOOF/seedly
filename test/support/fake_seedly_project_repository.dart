@@ -42,6 +42,7 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   final deletedProjects = <String>[];
   final addedTasks = <(String, NewSeedlyTask)>[];
   final updatedTasks = <(String, NewSeedlyTask)>[];
+  final movedTasks = <(String, String, NewSeedlyTask)>[];
   final deletedTasks = <String>[];
   final doneChanges = <(String, bool)>[];
 
@@ -102,6 +103,16 @@ class FakeSeedlyProjectRepository implements SeedlyProjectRepository {
   Future<void> updateTask(String taskId, NewSeedlyTask task) async {
     if (error != null) throw error!;
     updatedTasks.add((taskId, task));
+  }
+
+  @override
+  Future<void> moveTask(
+    String taskId,
+    String newProjectId,
+    NewSeedlyTask task,
+  ) async {
+    if (error != null) throw error!;
+    movedTasks.add((taskId, newProjectId, task));
   }
 
   @override

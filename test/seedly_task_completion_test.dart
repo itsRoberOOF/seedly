@@ -38,6 +38,27 @@ void main() {
     expect(drops.paid.keys, isNot(contains('task_t1')));
   });
 
+  test('moving a task relocates it and settles the destination project', () async {
+    await completion.move(task(), 'p2', const NewSeedlyTask('Sembrar'));
+    expect(projects.movedTasks, [('t1', 'p2', const NewSeedlyTask('Sembrar'))]);
+    expect(drops.paid.keys, contains('project_p2'));
+  });
+
+  test('a drops failure never undoes the move', () async {
+    drops.error = const SeedlyDropsException(SeedlyDropsError.saveFailed);
+    await completion.move(task(), 'p2', const NewSeedlyTask('Sembrar'));
+    expect(projects.movedTasks, [('t1', 'p2', const NewSeedlyTask('Sembrar'))]);
+  });
+
+  test('a move task failure is thrown and pays nothing', () async {
+    projects.error = const SeedlyProjectException(SeedlyProjectError.saveFailed);
+    await expectLater(
+      completion.move(task(), 'p2', const NewSeedlyTask('Sembrar')),
+      throwsA(isA<SeedlyProjectException>()),
+    );
+    expect(drops.paid, isEmpty);
+  });
+
   test('deleting a done task takes its drops back', () async {
     await completion.setDone(task(), true);
     await completion.delete(task(done: true));

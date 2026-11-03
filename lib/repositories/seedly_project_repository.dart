@@ -37,6 +37,14 @@ abstract interface class SeedlyProjectRepository {
   /// done is left to [setTaskDone]. Throws [SeedlyProjectException].
   Future<void> updateTask(String taskId, NewSeedlyTask task);
 
+  /// Moves the task to another project, applying [task]'s edited fields and
+  /// keeping its done state. The database can't change a task's project in
+  /// place, so this recreates it under [newProjectId] and keeps both projects'
+  /// counters (and the task's reward drop, if any) in step, all or nothing.
+  /// When [newProjectId] is the task's current project it just edits in place.
+  /// Throws [SeedlyProjectException].
+  Future<void> moveTask(String taskId, String newProjectId, NewSeedlyTask task);
+
   /// Deletes the task and keeps its project's counters in step.
   /// Throws [SeedlyProjectException].
   Future<void> deleteTask(String taskId);
