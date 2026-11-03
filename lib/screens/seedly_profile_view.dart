@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../modals/seedly_confirm_modal.dart';
 import '../modals/seedly_photo_modal.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_user_profile.dart';
@@ -34,6 +35,7 @@ class SeedlyProfileView extends StatefulWidget {
     required this.users,
     required this.picker,
     required this.onSignOut,
+    this.onLeavingChanged,
   });
 
   final SeedlyUserProfile? profile;
@@ -42,7 +44,14 @@ class SeedlyProfileView extends StatefulWidget {
 
   /// Where the avatar's edit button gets a photo from.
   final SeedlyImagePicker picker;
-  final VoidCallback onSignOut;
+
+  /// Signs out. The view waits for it, so [onLeavingChanged] reports the
+  /// whole leaving, not just this view's part of it.
+  final FutureOr<void> Function() onSignOut;
+
+  /// Tells the shell that leaving has started or ended, so it can block the
+  /// whole screen, menu included, from the moment Cerrar sesión is confirmed.
+  final ValueChanged<bool>? onLeavingChanged;
 
   @override
   State<SeedlyProfileView> createState() => _SeedlyProfileViewState();
@@ -74,6 +83,10 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
 
   /// Signing out is in progress, so a second tap does nothing.
   var _leaving = false;
+
+  /// The confirmation modal is open, so a second tap on the button doesn't
+  /// stack another one.
+  var _confirming = false;
 
   /// A failed save already told the person that tapping Cerrar sesión again
   /// leaves without saving. Cleared when they edit again or a save works.
@@ -286,6 +299,30 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
     }
   }
 
+  /// Asks first: signing out takes the person to the login, and a stray tap
+  /// on the button would otherwise do it with no way back. Only a confirmed
+  /// tap goes on to [_signOut].
+  Future<void> _confirmSignOut() async {
+    if (_leaving || _confirming) return;
+    _confirming = true;
+    final bool confirmed;
+    try {
+      confirmed = await showSeedlyConfirmModal(
+        context,
+        illustration: 'assets/images/modal_log_out.svg',
+        title: 'Cerrar sesión',
+        message:
+            '¿Seguro que quieres cerrar sesión? Tendrás que volver a iniciar '
+            'sesión para entrar a tu cuenta.',
+        confirmLabel: 'Cerrar sesión',
+        confirmIcon: 'assets/images/profile_log_out.svg',
+      );
+    } finally {
+      _confirming = false;
+    }
+    if (confirmed && mounted) await _signOut();
+  }
+
   /// Saves what is being typed before signing out: the tap on the button
   /// doesn't take focus from the field, so nothing else would save it, and
   /// once signed out there is no account to save it to. Signing out is never
@@ -294,6 +331,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
   Future<void> _signOut() async {
     if (_leaving) return;
     _leaving = true;
+    widget.onLeavingChanged?.call(true);
     try {
       FocusManager.instance.primaryFocus?.unfocus();
       // Unfocusing starts the saves of the fields that were focused; this
@@ -315,9 +353,10 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
       }
       // Don't leave "Perfil actualizado" floating over the login.
       hideSeedlyAlert();
-      widget.onSignOut();
+      await widget.onSignOut();
     } finally {
       _leaving = false;
+      widget.onLeavingChanged?.call(false);
     }
   }
 
@@ -499,7 +538,7 @@ class _SeedlyProfileViewState extends State<SeedlyProfileView> {
                 size: SeedlyButtonSize.large,
                 color: SeedlyPalette.danger[700],
                 expand: true,
-                onPressed: _signOut,
+                onPressed: _confirmSignOut,
                 trailing: SvgPicture.asset(
                   'assets/images/profile_log_out.svg',
                   width: 24,

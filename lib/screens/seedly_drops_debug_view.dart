@@ -2,24 +2,60 @@ import 'package:flutter/material.dart';
 
 import '../models/seedly_drops.dart';
 import '../models/seedly_errors.dart';
+import '../models/seedly_project.dart';
 import '../repositories/seedly_auth_repository.dart';
 import '../repositories/seedly_drops_repository.dart';
+import '../repositories/seedly_project_repository.dart';
 
-/// Debug-only panel to try the drops system before its real screens exist.
+/// Debug-only panel to try the drops system before its real screens exist,
+/// and to fill Inicio with sample projects and tasks.
 /// main.dart opens it instead of the app with --dart-define=DROPS_PANEL=true.
 class SeedlyDropsDebugView extends StatefulWidget {
   const SeedlyDropsDebugView({
     super.key,
     required this.auth,
     required this.drops,
+    required this.projects,
     required this.app,
   });
 
   final SeedlyAuthRepository auth;
   final SeedlyDropsRepository drops;
+  final SeedlyProjectRepository projects;
 
   /// The real app, opened on top to create projects and tasks to pay.
   final Widget app;
+
+  /// Two projects with tasks due today, some already done, so Inicio has a
+  /// focus task, cards to scroll and rings at different points: 25% and 67%.
+  static List<NewSeedlyProject> sampleProjects(DateTime today) {
+    final day = DateTime(today.year, today.month, today.day);
+    NewSeedlyTask task(String title, int hour, {bool done = false}) =>
+        NewSeedlyTask(title, done: done, dueDate: day, dueMinutes: hour * 60);
+    return [
+      NewSeedlyProject(
+        name: 'Prueba UI/UX',
+        kind: SeedlyProjectKind.full,
+        icon: SeedlyProjectIcon.tech,
+        tasks: [
+          task('Preparar pitch', 8, done: true),
+          task('Hacer sistema de diseño', 9),
+          task('Avanzar Framer', 11),
+          task('Diseño de frontend', 15),
+        ],
+      ),
+      NewSeedlyProject(
+        name: 'Prueba Arquitectura',
+        kind: SeedlyProjectKind.full,
+        icon: SeedlyProjectIcon.plan,
+        tasks: [
+          task('Revisar planos', 10, done: true),
+          task('Medir el terreno', 12, done: true),
+          task('Entregar maqueta', 18),
+        ],
+      ),
+    ];
+  }
 
   @override
   State<SeedlyDropsDebugView> createState() => _SeedlyDropsDebugViewState();
@@ -55,8 +91,18 @@ class _SeedlyDropsDebugViewState extends State<SeedlyDropsDebugView> {
       result = error.message;
     } on SeedlyAuthException catch (error) {
       result = error.message;
+    } on SeedlyProjectException catch (error) {
+      result = error.message;
     }
     if (mounted) setState(() => _result = '$label: $result');
+  }
+
+  Future<String> _createSamples() async {
+    final samples = SeedlyDropsDebugView.sampleProjects(DateTime.now());
+    for (final project in samples) {
+      await widget.projects.create(project);
+    }
+    return '${samples.length} proyectos con tareas de hoy';
   }
 
   @override
@@ -66,9 +112,12 @@ class _SeedlyDropsDebugViewState extends State<SeedlyDropsDebugView> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (widget.auth.isSignedIn) ..._panel() else ..._signIn(),
-          const SizedBox(height: 16),
+          // Above the buttons, so the outcome shows without scrolling. It is
+          // always there, empty at first, so the plant's stream keeps its
+          // place in the list instead of being listened to again.
           Text(_result),
+          const SizedBox(height: 16),
+          if (widget.auth.isSignedIn) ..._panel() else ..._signIn(),
         ],
       ),
     );
@@ -173,6 +222,11 @@ class _SeedlyDropsDebugViewState extends State<SeedlyDropsDebugView> {
     FilledButton(
       onPressed: () => _run('Crecer', widget.drops.growPlant),
       child: const Text('Crecer'),
+    ),
+    const Divider(height: 32),
+    OutlinedButton(
+      onPressed: () => _run('Crear proyectos de prueba', _createSamples),
+      child: const Text('Crear proyectos de prueba (tareas de hoy)'),
     ),
     const SizedBox(height: 8),
     TextButton(

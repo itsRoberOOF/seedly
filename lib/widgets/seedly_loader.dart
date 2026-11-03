@@ -2,59 +2,36 @@ import 'package:flutter/material.dart';
 
 import '../theme/seedly_theme.dart';
 
-/// A three-second branded progress bar based on Figma's Progress Bar component.
-class SeedlyLoader extends StatefulWidget {
-  const SeedlyLoader({super.key, this.startAfter, this.onComplete});
+/// Figma's Progress Bar component as a loading indicator: the bar follows
+/// [progress] and the caption always reads "Cargando".
+class SeedlyLoader extends StatelessWidget {
+  const SeedlyLoader({super.key, required this.progress});
 
-  /// Defaults to the first frame being rasterized, so progress starts onscreen.
-  final Future<void>? startAfter;
-  final VoidCallback? onComplete;
-
-  @override
-  State<SeedlyLoader> createState() => _SeedlyLoaderState();
-}
-
-class _SeedlyLoaderState extends State<SeedlyLoader>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _progress = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 3),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _progress.addStatusListener((status) {
-      if (status == AnimationStatus.completed) widget.onComplete?.call();
-    });
-    final ready =
-        widget.startAfter ??
-        WidgetsBinding.instance.waitUntilFirstFrameRasterized;
-    ready.then((_) {
-      if (mounted) _progress.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _progress.dispose();
-    super.dispose();
-  }
+  /// How far along, from 0 to 1.
+  final double progress;
 
   @override
   Widget build(BuildContext context) {
+    final value = progress.clamp(0.0, 1.0);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Semantics(
       label: 'Cargando',
+      value: '${(value * 100).round()}%',
       liveRegion: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedBuilder(
-            animation: _progress,
-            builder: (context, _) => SizedBox(
+          // The bar glides to each new value instead of jumping.
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: value),
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            builder: (context, shown, _) => SizedBox(
               width: 244,
               child: LinearProgressIndicator(
-                value: _progress.value,
+                value: shown,
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(
                   SeedlyMetrics.radii['full']!,
@@ -65,12 +42,14 @@ class _SeedlyLoaderState extends State<SeedlyLoader>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'CARGANDO',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: SeedlyPalette.neutral[600],
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
+          ExcludeSemantics(
+            child: Text(
+              'CARGANDO',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: SeedlyPalette.neutral[600],
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
         ],

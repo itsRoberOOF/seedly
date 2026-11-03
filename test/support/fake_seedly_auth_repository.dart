@@ -64,6 +64,10 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   /// What [signInWithGoogle] returns; false mimics closing the picker.
   final bool googleResult;
 
+  /// The sign-in and sign-up methods wait for it, to look at the screen while
+  /// signing in.
+  Future<void>? signInGate;
+
   final emailAttempts = <({String email, String password})>[];
   final signUpAttempts = <({String name, String email, String password})>[];
   int googleAttempts = 0;
@@ -74,6 +78,7 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
     required String password,
   }) async {
     emailAttempts.add((email: email, password: password));
+    await signInGate;
     if (error != null) throw error!;
     isSignedIn = true;
   }
@@ -85,6 +90,7 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
     required String password,
   }) async {
     signUpAttempts.add((name: name, email: email, password: password));
+    await signInGate;
     if (error != null) throw error!;
     isSignedIn = true;
   }
@@ -97,10 +103,14 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   /// Thrown by [signOut] when set.
   SeedlyAuthException? signOutError;
 
+  /// [signOut] waits for it, to look at the screen while signing out.
+  Future<void>? signOutGate;
+
   @override
   Future<void> signOut() async {
     signOutCalls++;
     onSignOut?.call();
+    await signOutGate;
     if (signOutError != null) throw signOutError!;
     isSignedIn = false;
   }
@@ -108,6 +118,7 @@ class FakeSeedlyAuthRepository implements SeedlyAuthRepository {
   @override
   Future<bool> signInWithGoogle() async {
     googleAttempts++;
+    await signInGate;
     if (error != null) throw error!;
     isSignedIn = googleResult;
     return googleResult;

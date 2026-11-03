@@ -17,6 +17,7 @@ import 'support/fake_seedly_image_picker.dart';
 import 'support/fake_seedly_project_repository.dart';
 import 'support/fake_seedly_user_repository.dart';
 import 'support/keep_plant_still.dart';
+import 'support/sign_out.dart';
 
 SeedlyUserProfile _profile({String? username, String? bio}) =>
     SeedlyUserProfile(
@@ -32,7 +33,8 @@ Future<void> _openView(
   WidgetTester tester,
   FakeSeedlyUserRepository users, {
   SeedlyUserProfile? profile,
-  VoidCallback? onSignOut,
+  FutureOr<void> Function()? onSignOut,
+  ValueChanged<bool>? onLeavingChanged,
   FakeSeedlyAuthRepository? auth,
 }) async {
   tester.view.physicalSize = const Size(440, 956);
@@ -49,6 +51,7 @@ Future<void> _openView(
           users: users,
           picker: FakeSeedlyImagePicker(),
           onSignOut: onSignOut ?? () {},
+          onLeavingChanged: onLeavingChanged,
         ),
       ),
     ),
@@ -381,19 +384,19 @@ void main() {
   });
 
   group('bio length', () {
-    testWidgets('typing or pasting past 160 units is cut', (tester) async {
+    testWidgets('typing or pasting past 250 units is cut', (tester) async {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, 'a' * 170);
-      expect(_text(tester, _bioField), 'a' * 160);
+      await _type(tester, _bioField, 'a' * 260);
+      expect(_text(tester, _bioField), 'a' * 250);
 
       await _type(tester, _bioField, '');
-      await _type(tester, _bioField, '${'a' * 150}${'😀' * 10}');
-      expect(_text(tester, _bioField), '${'a' * 150}${'😀' * 5}');
+      await _type(tester, _bioField, '${'a' * 240}${'😀' * 10}');
+      expect(_text(tester, _bioField), '${'a' * 240}${'😀' * 5}');
       await _blur(tester);
 
-      expect(users.updates.single.bio!.value!.length, 160);
+      expect(users.updates.single.bio!.value!.length, 250);
     });
 
     testWidgets('typing one more character at a full field is rejected', (
@@ -402,28 +405,28 @@ void main() {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, 'a' * 160);
-      await _type(tester, _bioField, '${'a' * 160}X');
-      expect(_text(tester, _bioField), 'a' * 160);
+      await _type(tester, _bioField, 'a' * 250);
+      await _type(tester, _bioField, '${'a' * 250}X');
+      expect(_text(tester, _bioField), 'a' * 250);
     });
 
-    testWidgets('80 emojis are saved', (tester) async {
+    testWidgets('125 emojis are saved', (tester) async {
       final users = FakeSeedlyUserRepository();
       await _openView(tester, users);
 
-      await _type(tester, _bioField, '😀' * 81);
-      expect(_text(tester, _bioField), '😀' * 80);
+      await _type(tester, _bioField, '😀' * 126);
+      expect(_text(tester, _bioField), '😀' * 125);
       await _blur(tester);
 
       expect(users.updates, hasLength(1));
-      expect(users.updates.single.bio!.value, '😀' * 80);
+      expect(users.updates.single.bio!.value, '😀' * 125);
       expect(find.text('Bio no válida'), findsNothing);
     });
   });
 
   group('signing out', () {
     Future<void> signOut(WidgetTester tester) async {
-      await tester.tap(find.text('Cerrar sesión'));
+      await tapSignOut(tester);
       await tester.pump();
     }
 
@@ -639,7 +642,10 @@ void main() {
 
       await _type(tester, _bioField, 'Hola');
       await signOut(tester);
-      await signOut(tester);
+      // Signing out is already under way: the second tap opens no modal.
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.widgetWithText(FilledButton, 'Cerrar sesión'), findsNothing);
       expect(users.updates, hasLength(1));
 
       gate.complete();
@@ -661,7 +667,9 @@ void main() {
 
       await _type(tester, _bioField, 'Hola');
       await signOut(tester);
-      await signOut(tester);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.widgetWithText(FilledButton, 'Cerrar sesión'), findsNothing);
       expect(signedOut, 0);
 
       gate.complete();
@@ -673,6 +681,64 @@ void main() {
       await signOut(tester);
       await tester.pump();
       expect(signedOut, 1);
+    });
+
+    testWidgets('tells the shell it is leaving from the confirmed tap', (
+      tester,
+    ) async {
+      final users = FakeSeedlyUserRepository();
+      final gate = Completer<void>();
+      users.updateGate = gate.future;
+      final leaving = <bool>[];
+      await _openView(tester, users, onLeavingChanged: leaving.add);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+
+      // Leaving began before the slow save ended, so the shell can already
+      // block the screen.
+      expect(leaving, [true]);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(leaving, [true, false]);
+    });
+
+    testWidgets('keeps leaving until the shell has signed out', (tester) async {
+      final signingOut = Completer<void>();
+      final leaving = <bool>[];
+      await _openView(
+        tester,
+        FakeSeedlyUserRepository(),
+        onSignOut: () => signingOut.future,
+        onLeavingChanged: leaving.add,
+      );
+
+      await signOut(tester);
+      await tester.pump();
+      expect(leaving, [true]);
+
+      signingOut.complete();
+      await tester.pump();
+      expect(leaving, [true, false]);
+    });
+
+    testWidgets('stops leaving when a failed save only warns', (tester) async {
+      final users = FakeSeedlyUserRepository()
+        ..updateError = const SeedlyProfileException(
+          SeedlyProfileError.saveFailed,
+        );
+      final leaving = <bool>[];
+      await _openView(tester, users, onLeavingChanged: leaving.add);
+
+      await _type(tester, _bioField, 'Hola');
+      await signOut(tester);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('No se guardaron tus cambios'), findsOneWidget);
+      expect(leaving, [true, false]);
     });
 
     testWidgets('Home leaves no success alert over the login', (tester) async {
@@ -700,7 +766,7 @@ void main() {
       await tester.pump();
       await _type(tester, _bioField, 'Hasta pronto');
 
-      await tester.tap(find.text('Cerrar sesión'));
+      await tapSignOut(tester);
       await tester.pumpAndSettle();
 
       expect(find.byType(SeedlyLoginScreen), findsOneWidget);
@@ -751,7 +817,7 @@ void main() {
       await tester.pump();
       await _type(tester, _bioField, 'Hasta pronto');
 
-      await tester.tap(find.text('Cerrar sesión'));
+      await tapSignOut(tester);
       await tester.pumpAndSettle();
 
       expect(users.updates, hasLength(1));
@@ -947,7 +1013,7 @@ void main() {
       users.emitError();
       await tester.pump();
 
-      await tester.tap(find.text('Cerrar sesión'));
+      await tapSignOut(tester);
       await tester.pumpAndSettle();
       users.emitError();
       await tester.pump(const Duration(minutes: 1));

@@ -57,8 +57,8 @@ class SeedlyAuthException implements Exception {
   String toString() => message;
 }
 
-/// Why saving a project failed.
-enum SeedlyProjectError { sessionExpired, saveFailed }
+/// Why saving, reading or deleting a project or task failed.
+enum SeedlyProjectError { sessionExpired, saveFailed, notFound, loadFailed }
 
 class SeedlyProjectException implements Exception {
   const SeedlyProjectException(this.reason);
@@ -71,6 +71,9 @@ class SeedlyProjectException implements Exception {
       'Tu sesión expiró. Vuelve a iniciar sesión.',
     SeedlyProjectError.saveFailed =>
       'No se pudo guardar el proyecto. Inténtalo de nuevo.',
+    SeedlyProjectError.notFound => 'Ese proyecto o tarea ya no existe.',
+    SeedlyProjectError.loadFailed =>
+      'No se pudieron cargar tus proyectos. Revisa tu conexión.',
   };
 
   @override

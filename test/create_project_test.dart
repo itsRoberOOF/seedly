@@ -668,7 +668,7 @@ void main() {
         '12 oct 2026',
       );
       await tester.enterText(_taskTitle, 'Sembrar tomates');
-      await _tapVisible(tester, find.text('Guardar tarea'));
+      await _tapVisible(tester, find.text('Guardar cambios'));
       expect(find.text('Sembrar tomates'), findsOneWidget);
 
       await _tapVisible(tester, find.byTooltip('Más opciones').last);
@@ -692,7 +692,7 @@ void main() {
       await _tapVisible(tester, find.byTooltip('Más opciones'));
       await tester.tap(find.text('Editar'));
       await tester.pumpAndSettle();
-      await _tapVisible(tester, find.text('Guardar tarea'));
+      await _tapVisible(tester, find.text('Guardar cambios'));
       await _tapVisible(tester, find.text('Crear proyecto'));
       expect(projects.created.single.tasks.single.done, isTrue);
     });

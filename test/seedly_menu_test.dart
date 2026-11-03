@@ -204,7 +204,12 @@ void main() {
       SeedlyMenuTab.perfil,
       SeedlyMenuTab.inicio,
     ]) {
-      await tester.tap(find.text(tab.label));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SeedlyMenu),
+          matching: find.text(tab.label),
+        ),
+      );
       await tester.pump();
       expect(active(), tab);
     }

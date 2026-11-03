@@ -153,7 +153,7 @@ service cloud.firestore {
                 && data.username.size() >= 3 && data.username.size() <= 20
                 && data.username.matches('^[a-z0-9_]+$')))
         && (data.get('bio', null) == null
-            || (data.bio is string && data.bio.size() <= 160))
+            || (data.bio is string && data.bio.size() <= 250))
         // An avatar-sized JPEG; Firestore documents cap at 1 MiB.
         && (data.get('photo', null) == null
             || (data.photo is bytes && data.photo.size() <= 262144))

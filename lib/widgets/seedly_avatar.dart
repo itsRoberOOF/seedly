@@ -20,6 +20,7 @@ class SeedlyAvatar extends StatelessWidget {
     this.photoLabel = 'Imagen del proyecto',
     this.onEdit,
     this.size = 120,
+    this.padding = 6,
     this.editInset = 0,
   }) : assert(
          icon != null || photo != null || (initials != null && initials != ''),
@@ -47,6 +48,10 @@ class SeedlyAvatar extends StatelessWidget {
 
   /// Diameter of the circle.
   final double size;
+
+  /// The white ring around the photo or initials: 6px on the profile's
+  /// avatar, 4px on Figma's 56px Giant one.
+  final double padding;
 
   /// How far the edit button sits in from the circle's lower right.
   final double editInset;
@@ -81,7 +86,7 @@ class SeedlyAvatar extends StatelessWidget {
     final avatar = Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(6),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: SeedlyPalette.neutral[50],
         shape: BoxShape.circle,

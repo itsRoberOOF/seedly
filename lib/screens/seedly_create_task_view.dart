@@ -28,8 +28,11 @@ class SeedlyCreateTaskView extends StatefulWidget {
     this.initial,
     this.today,
     this.onReminderSelected,
+    this.onPickProject,
   });
 
+  /// The project the task belongs to. Empty only when [onPickProject] is
+  /// set and none has been chosen yet.
   final String projectName;
   final String projectIcon;
   final Uint8List? projectPhoto;
@@ -43,6 +46,11 @@ class SeedlyCreateTaskView extends StatefulWidget {
 
   /// Defaults to the current day; tests pin it.
   final DateTime? today;
+
+  /// Turns "Proyecto *" into a choice: tapping it asks the caller to pick a
+  /// project, and saving without one is refused. Without it the project is
+  /// fixed, as for the tasks of a project being created or edited.
+  final VoidCallback? onPickProject;
 
   @override
   State<SeedlyCreateTaskView> createState() => _SeedlyCreateTaskViewState();
@@ -59,6 +67,19 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
   /// that already uses its options.
   late bool _expanded = _dueMinutes != null;
   var _autovalidate = AutovalidateMode.disabled;
+
+  /// A save was refused for lack of a project; shows the red border until
+  /// one is chosen.
+  bool _projectMissing = false;
+
+  bool get _needsProject =>
+      widget.onPickProject != null && widget.projectName.trim().isEmpty;
+
+  @override
+  void didUpdateWidget(SeedlyCreateTaskView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_needsProject) _projectMissing = false;
+  }
 
   DateTime get _today => SeedlyDates.day(widget.today ?? DateTime.now());
 
@@ -108,13 +129,20 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
   }
 
   void _save() {
-    if (!_formKey.currentState!.validate()) {
-      setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
+    final titleOk = _formKey.currentState!.validate();
+    if (!titleOk || _needsProject) {
+      setState(() {
+        _autovalidate = AutovalidateMode.onUserInteraction;
+        _projectMissing = _needsProject;
+      });
       showSeedlyAlert(
         context,
         style: SeedlyAlertStyle.danger,
         title: 'Campos incompletos',
-        message: _titleError(_title.text)!,
+        message: [
+          if (!titleOk) _titleError(_title.text)!,
+          if (_needsProject) 'Elige un proyecto',
+        ].join('\n'),
       );
       return;
     }
@@ -211,7 +239,7 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
             ),
             const SizedBox(height: 24),
             SeedlyButton(
-              label: editing ? 'Guardar tarea' : 'Crear tarea',
+              label: editing ? 'Guardar cambios' : 'Crear tarea',
               expand: true,
               leading: SvgPicture.asset(
                 editing
@@ -280,6 +308,8 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
   Widget _projectField() {
     final radius = BorderRadius.circular(SeedlyMetrics.radii['lg']!);
     final name = widget.projectName.trim();
+    final pick = widget.onPickProject;
+    final empty = name.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
@@ -294,60 +324,90 @@ class _SeedlyCreateTaskViewState extends State<SeedlyCreateTaskView> {
           ),
         ),
         Semantics(
-          label: 'Proyecto: ${name.isEmpty ? 'sin nombre' : name}',
+          button: pick != null,
+          label: pick != null && empty
+              ? 'Elegir proyecto'
+              : 'Proyecto: ${empty ? 'sin nombre' : name}',
           excludeSemantics: true,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: DecoratedBox(
             decoration: BoxDecoration(
               color: SeedlyPalette.neutral[50],
               borderRadius: radius,
-              border: Border.all(color: SeedlyPalette.border),
+              border: Border.all(
+                color: _projectMissing
+                    ? SeedlyPalette.danger[600]!
+                    : SeedlyPalette.border,
+              ),
               boxShadow: SeedlyShadows.card,
             ),
-            child: Row(
-              spacing: 12,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  alignment: Alignment.center,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: SeedlyPalette.primary[50],
-                    shape: BoxShape.circle,
+            child: Material(
+              type: MaterialType.transparency,
+              borderRadius: radius,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: pick,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  child: widget.projectPhoto != null
-                      ? Image.memory(
-                          widget.projectPhoto!,
-                          fit: BoxFit.cover,
-                          width: 48,
-                          height: 48,
-                        )
-                      : SvgPicture.asset(
-                          widget.projectIcon,
-                          width: 24,
-                          height: 24,
-                          colorFilter: ColorFilter.mode(
-                            SeedlyPalette.primary[600]!,
-                            BlendMode.srcIn,
+                  child: Row(
+                    spacing: 12,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: SeedlyPalette.primary[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: widget.projectPhoto != null
+                            ? Image.memory(
+                                widget.projectPhoto!,
+                                fit: BoxFit.cover,
+                                width: 48,
+                                height: 48,
+                              )
+                            : SvgPicture.asset(
+                                widget.projectIcon,
+                                width: 24,
+                                height: 24,
+                                colorFilter: ColorFilter.mode(
+                                  SeedlyPalette.primary[600]!,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          empty
+                              ? (pick != null
+                                    ? 'Elige un proyecto'
+                                    : 'Proyecto sin nombre')
+                              : name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 16,
+                            height: 24 / 16,
+                            color: empty
+                                ? SeedlyPalette.neutral[600]
+                                : SeedlyPalette.neutral[850],
                           ),
                         ),
-                ),
-                Expanded(
-                  child: Text(
-                    name.isEmpty ? 'Proyecto sin nombre' : name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 24 / 16,
-                      color: name.isEmpty
-                          ? SeedlyPalette.neutral[600]
-                          : SeedlyPalette.neutral[850],
-                    ),
+                      ),
+                      if (pick != null)
+                        SvgPicture.asset(
+                          'assets/images/icon_nav_down.svg',
+                          width: 24,
+                          height: 24,
+                        ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),

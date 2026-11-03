@@ -49,27 +49,76 @@ void main() {
     }
   });
 
-  testWidgets('Loading bar reaches each fifth in three seconds', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: SeedlyLoader(startAfter: Future<void>.value())),
-      ),
+  group('SeedlyLoader', () {
+    Widget host(Widget loader) => MaterialApp(
+      home: Scaffold(body: Center(child: loader)),
     );
-    await tester.pump();
 
-    double progress() => tester
+    double shown(WidgetTester tester) => tester
         .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
         .value!;
 
-    expect(progress(), 0);
-    for (var step = 1; step <= 5; step++) {
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(progress(), closeTo(step / 5, 0.001));
-    }
+    testWidgets('shows how far along it is', (tester) async {
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0.4)));
+      await tester.pumpAndSettle();
 
-    await tester.pump(const Duration(seconds: 1));
-    expect(progress(), 1);
+      expect(shown(tester), closeTo(0.4, 0.001));
+    });
+
+    testWidgets('glides to a new value instead of jumping', (tester) async {
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0)));
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 1)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+
+      expect(shown(tester), inExclusiveRange(0.0, 1.0));
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(shown(tester), 1);
+    });
+
+    testWidgets('keeps what is out of range inside the bar', (tester) async {
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 1.7)));
+      await tester.pumpAndSettle();
+      expect(shown(tester), 1);
+
+      await tester.pumpWidget(host(const SeedlyLoader(progress: -1)));
+      await tester.pumpAndSettle();
+      expect(shown(tester), 0);
+    });
+
+    testWidgets('always says Cargando, whatever the progress', (tester) async {
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0)));
+      expect(find.text('CARGANDO'), findsOneWidget);
+
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0.7)));
+      await tester.pumpAndSettle();
+      expect(find.text('CARGANDO'), findsOneWidget);
+    });
+
+    testWidgets('with reduce motion it does not glide', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0)));
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 1)));
+      await tester.pump();
+
+      expect(shown(tester), 1);
+    });
+
+    testWidgets('announces itself as loading with its percentage', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(host(const SeedlyLoader(progress: 0.25)));
+
+      final node = tester.getSemantics(find.byType(SeedlyLoader));
+      expect(node.label, 'Cargando');
+      expect(node.value, '25%');
+      handle.dispose();
+    });
   });
 }

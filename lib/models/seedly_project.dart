@@ -174,6 +174,74 @@ class SeedlyTask {
       'reminder: $reminderMinutes)';
 }
 
+/// A project read from Firestore, with the progress counters that keep the
+/// project list from reading every task.
+class SeedlyProject {
+  const SeedlyProject({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.icon,
+    required this.taskCount,
+    required this.doneCount,
+    this.description,
+    this.photo,
+    this.startDate,
+    this.endDate,
+  });
+
+  final String id;
+  final String name;
+  final SeedlyProjectKind kind;
+  final SeedlyProjectIcon icon;
+  final String? description;
+
+  /// A small JPEG shown instead of [icon], when the project has one.
+  final Uint8List? photo;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final int taskCount;
+  final int doneCount;
+
+  /// Tasks still to do.
+  int get remaining => taskCount - doneCount;
+
+  /// Every task done; a project with no tasks is not complete.
+  bool get isComplete => taskCount > 0 && doneCount >= taskCount;
+
+  /// How far along, from 0 to 1.
+  double get progress => taskCount == 0 ? 0 : doneCount / taskCount;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeedlyProject &&
+      other.id == id &&
+      other.name == name &&
+      other.kind == kind &&
+      other.icon == icon &&
+      other.description == description &&
+      other.startDate == startDate &&
+      other.endDate == endDate &&
+      other.taskCount == taskCount &&
+      other.doneCount == doneCount;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    kind,
+    icon,
+    description,
+    startDate,
+    endDate,
+    taskCount,
+    doneCount,
+  );
+
+  @override
+  String toString() => 'SeedlyProject($id, $name, $doneCount/$taskCount done)';
+}
+
 /// What the create-project form submits.
 class NewSeedlyProject {
   NewSeedlyProject({
@@ -207,3 +275,27 @@ class NewSeedlyProject {
 
 /// Whether the server confirmed the project or it is waiting to sync.
 enum SeedlyProjectSave { saved, pendingSync }
+
+/// What the edit-project form submits; the kind and the tasks stay as they
+/// are. Every field is written, so pass the current value for what didn't
+/// change.
+class SeedlyProjectChanges {
+  SeedlyProjectChanges({
+    required this.name,
+    this.description,
+    this.icon = SeedlyProjectIcon.planta,
+    this.photo,
+    this.startDate,
+    this.endDate,
+  }) : assert(
+         startDate == null || endDate == null || !endDate.isBefore(startDate),
+         'A project cannot end before it starts',
+       );
+
+  final String name;
+  final String? description;
+  final SeedlyProjectIcon icon;
+  final Uint8List? photo;
+  final DateTime? startDate;
+  final DateTime? endDate;
+}
