@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:seedly/models/seedly_drops.dart';
 import 'package:seedly/models/seedly_errors.dart';
+import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/repositories/seedly_drops_repository.dart';
 
 /// In-memory [SeedlyDropsRepository] so screen tests never reach Firestore.
@@ -45,6 +46,31 @@ class FakeSeedlyDropsRepository implements SeedlyDropsRepository {
   @override
   Future<int> addProjectDrops(String projectId) =>
       _pay('project_$projectId', SeedlyDrops.perProject);
+
+  /// Settles a tick as FirestoreSeedlyProjectRepository.settleTaskDone does,
+  /// for FakeSeedlyProjectRepository: pays or takes back the task's drops,
+  /// and pays its project too when [finishesProject].
+  SeedlyDropsChange settle(
+    SeedlyTask task,
+    bool done, {
+    required bool finishesProject,
+  }) {
+    _check();
+    final finished = finishesProject ? SeedlyDrops.minProjectTasks : 0;
+    final change = SeedlyDropsChange.ofTaskToggle(
+      done: done,
+      taskPaid: paid.containsKey('task_${task.id}'),
+      tasksPaidToday: paid.keys.where((key) => key.startsWith('task_')).length,
+      projectPaid: paid.containsKey('project_${task.projectId}'),
+      projectTasks: finished,
+      projectDoneAfter: finished,
+    );
+    if (change.task > 0) paid['task_${task.id}'] = change.task;
+    if (change.task < 0) paid.remove('task_${task.id}');
+    if (change.project > 0) paid['project_${task.projectId}'] = change.project;
+    _changes.add(null);
+    return change;
+  }
 
   @override
   Future<String> startWateringSession() async {

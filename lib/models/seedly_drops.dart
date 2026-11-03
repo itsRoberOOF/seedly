@@ -19,6 +19,87 @@ abstract final class SeedlyDrops {
 /// What paid a drop movement; the stored value is [name].
 enum SeedlyDropSource { task, project, watering }
 
+/// Drops moved by ticking or unticking one task.
+class SeedlyDropsChange {
+  const SeedlyDropsChange({
+    this.task = 0,
+    this.project = 0,
+    this.capped = false,
+  });
+
+  /// What ticking ([done]) or unticking a task moves, given what was already
+  /// paid. The task pays [SeedlyDrops.perTask] once, unless today's cap is
+  /// reached; its project pays [SeedlyDrops.perProject] once, when the tick
+  /// leaves at least [SeedlyDrops.minProjectTasks] tasks all done. Unticking
+  /// takes the task's drops back but never the project's. firestore.rules
+  /// checks the same, except the cap.
+  factory SeedlyDropsChange.ofTaskToggle({
+    required bool done,
+    required bool taskPaid,
+    required int tasksPaidToday,
+    required bool projectPaid,
+    required int projectTasks,
+    required int projectDoneAfter,
+  }) {
+    if (!done) {
+      return SeedlyDropsChange(task: taskPaid ? -SeedlyDrops.perTask : 0);
+    }
+    final capped =
+        !taskPaid && tasksPaidToday >= SeedlyDrops.maxRewardedTasksPerDay;
+    final finishes =
+        projectTasks >= SeedlyDrops.minProjectTasks &&
+        projectDoneAfter == projectTasks;
+    return SeedlyDropsChange(
+      task: taskPaid || capped ? 0 : SeedlyDrops.perTask,
+      project: finishes && !projectPaid ? SeedlyDrops.perProject : 0,
+      capped: capped,
+    );
+  }
+
+  static const none = SeedlyDropsChange();
+
+  /// Paid for the task itself; negative when unticking takes them back.
+  final int task;
+
+  /// Paid for finishing the task's project.
+  final int project;
+
+  /// The tick paid nothing for the task because today's cap was reached.
+  final bool capped;
+
+  int get total => task + project;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeedlyDropsChange &&
+      other.task == task &&
+      other.project == project &&
+      other.capped == capped;
+
+  @override
+  int get hashCode => Object.hash(task, project, capped);
+
+  @override
+  String toString() =>
+      'SeedlyDropsChange(task: $task, project: $project, capped: $capped)';
+}
+
+/// A task just ticked or unticked: the [drops] it moved, known as soon as the
+/// write is in this device's local view, and [saved], which completes once
+/// the server accepts it. If the server refuses, [saved] throws the
+/// repository's exception and the local view undoes the write.
+class SeedlyTaskToggle {
+  const SeedlyTaskToggle(this.drops, this.saved);
+
+  /// Nothing moved and nothing is left to save.
+  SeedlyTaskToggle.unchanged()
+    : drops = SeedlyDropsChange.none,
+      saved = Future<void>.value();
+
+  final SeedlyDropsChange drops;
+  final Future<void> saved;
+}
+
 /// The plant's phase and every drop collected, spent or not: growing is
 /// manual and costs nothing.
 class SeedlyPlantState {

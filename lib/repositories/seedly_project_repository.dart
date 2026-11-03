@@ -1,3 +1,4 @@
+import '../models/seedly_drops.dart';
 import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
 
@@ -53,4 +54,12 @@ abstract interface class SeedlyProjectRepository {
   /// Does nothing when it already has that state.
   /// Throws [SeedlyProjectException].
   Future<void> setTaskDone(String taskId, bool done);
+
+  /// Like [setTaskDone], and settles the task's drops in the same write so
+  /// the two never disagree: see [SeedlyDropsChange.ofTaskToggle]. Returns as
+  /// soon as the write is in this device's local view, which the screens and
+  /// the plant already show; [SeedlyTaskToggle.saved] completes once the
+  /// server accepts it, or throws [SeedlyProjectException].
+  /// Throws [SeedlyProjectException] if the task can't be read.
+  Future<SeedlyTaskToggle> settleTaskDone(SeedlyTask task, bool done);
 }
