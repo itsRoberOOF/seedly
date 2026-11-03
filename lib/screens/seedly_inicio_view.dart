@@ -213,6 +213,17 @@ class _SeedlyInicioViewState extends State<SeedlyInicioView> {
     );
   }
 
+  SeedlyInfoCard _taskCard(SeedlyTask task, List<SeedlyProject> projects) {
+    return SeedlyInfoCard(
+      icon: _iconOf(task, projects),
+      title: task.title,
+      helper: task.dueDate == null
+          ? null
+          : SeedlyDates.due(task.dueDate!, task.dueMinutes, _today),
+      onTap: _taskTap(task),
+    );
+  }
+
   /// Figma's horizontal scroll of 260px cards.
   Widget _upcoming(List<SeedlyProject> projects) {
     return StreamBuilder<List<SeedlyTask>>(
@@ -244,6 +255,11 @@ class _SeedlyInicioViewState extends State<SeedlyInicioView> {
                   ),
           );
         }
+        // A single task fills the width instead of leaving a 260px card
+        // stranded in half the screen.
+        if (tasks.length == 1) {
+          return _padded(_taskCard(tasks.first, projects));
+        }
         return SizedBox(
           height: 72,
           child: ListView.separated(
@@ -252,20 +268,10 @@ class _SeedlyInicioViewState extends State<SeedlyInicioView> {
             clipBehavior: Clip.none,
             itemCount: tasks.length,
             separatorBuilder: (context, index) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return SizedBox(
-                width: 260,
-                child: SeedlyInfoCard(
-                  icon: _iconOf(task, projects),
-                  title: task.title,
-                  helper: task.dueDate == null
-                      ? null
-                      : SeedlyDates.due(task.dueDate!, task.dueMinutes, _today),
-                  onTap: _taskTap(task),
-                ),
-              );
-            },
+            itemBuilder: (context, index) => SizedBox(
+              width: 260,
+              child: _taskCard(tasks[index], projects),
+            ),
           ),
         );
       },
