@@ -31,6 +31,9 @@ class SeedlyProgressView extends StatefulWidget {
 }
 
 class _SeedlyProgressViewState extends State<SeedlyProgressView> {
+  double get _layoutScale =>
+      math.min(1.0, MediaQuery.sizeOf(context).width / 440);
+
   late Stream<SeedlyPlantState> _plantStream;
   SeedlyPlantState? _lastPlant;
   Timer? _initialLoadTimer;
@@ -184,13 +187,22 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
   Widget _layout(List<Widget> children, {required bool readError}) => SafeArea(
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final top = math.max(24.0, 48 - MediaQuery.paddingOf(context).top);
+        final scale = _layoutScale;
+        final top = math.max(
+          12.0,
+          48 * scale - MediaQuery.paddingOf(context).top,
+        );
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(32, top, 32, 16),
+                padding: EdgeInsets.fromLTRB(
+                  32 * scale,
+                  top,
+                  32 * scale,
+                  16 * scale,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -232,7 +244,7 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SeedlyHeader(title: 'Mi progreso', onBack: _back),
-          const SizedBox(height: 48),
+          SizedBox(height: 48 * _layoutScale),
           _dropProgress(plant, goal, remaining),
         ],
       ),
@@ -263,7 +275,7 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
               ),
               onPressed: _water,
             ),
-          const SizedBox(height: 48),
+          SizedBox(height: 48 * _layoutScale),
           const _ProgressDecoration(),
         ],
       ),
@@ -282,17 +294,24 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(fontWeight: FontWeight.w500),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset('assets/images/progress_drop.svg'),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${_number(plant.totalDrops)} / ${_number(goal)}',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SvgPicture.asset('assets/images/progress_drop.svg'),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${_number(plant.totalDrops)} / ${_number(goal)}',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -324,16 +343,26 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
   List<Widget> _growthSuccess(SeedlyPlantState plant) => [
     Column(
       children: [
-        Text(
-          '¡Tu planta creció!',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.displayMedium,
+        SizedBox(
+          width: double.infinity,
+          height: 48 * _layoutScale,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '¡Tu planta creció!',
+              maxLines: 1,
+              softWrap: false,
+              style: Theme.of(context).textTheme.displayMedium,
+            ),
+          ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10 * _layoutScale),
         Text(
           'Gracias a tu constancia, tu planta avanzó a su siguiente fase',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontSize: math.max(14, 18 * _layoutScale),
+            height: 28 / 18,
             fontWeight: FontWeight.w500,
             color: SeedlyPalette.neutral[700],
           ),
@@ -341,35 +370,45 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
       ],
     ),
     _PlantSlot(plant.phase),
-    _dropsCard(
-      value: plant.nextGoal ?? plant.totalDrops,
-      label: plant.nextGoal == null ? 'Gotas acumuladas' : 'Tu próxima meta',
+    Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _dropsCard(
+          value: plant.nextGoal ?? plant.totalDrops,
+          label: plant.nextGoal == null
+              ? 'Gotas acumuladas'
+              : 'Tu próxima meta',
+        ),
+        SizedBox(height: 48 * _layoutScale),
+        SeedlyButton(
+          label: 'Volver al inicio',
+          expand: true,
+          leading: SvgPicture.asset('assets/images/progress_back_white.svg'),
+          onPressed: _back,
+        ),
+        SizedBox(height: 48 * _layoutScale),
+        const _ProgressDecoration(),
+      ],
     ),
-    SeedlyButton(
-      label: 'Volver al inicio',
-      expand: true,
-      leading: SvgPicture.asset('assets/images/progress_back_white.svg'),
-      onPressed: _back,
-    ),
-    const _ProgressDecoration(),
   ];
 
   List<Widget> _maximum(SeedlyPlantState plant) => [
     Column(
       children: [
         SeedlyHeader(title: 'Mi progreso', onBack: _back),
-        const SizedBox(height: 40),
+        SizedBox(height: 40 * _layoutScale),
         Text(
           '¡Nivel máximo!',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.displaySmall
-              ?.copyWith(height: 48 / 32),
+              ?.copyWith(fontSize: 32 * _layoutScale, height: 48 / 32),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10 * _layoutScale),
         Text(
           'Tu planta alcanzó su máximo esplendor. Sigue regando para mantenerla feliz.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontSize: math.max(14, 16 * _layoutScale),
             fontWeight: FontWeight.w500,
             height: 28 / 16,
             color: SeedlyPalette.neutral[700],
@@ -378,16 +417,18 @@ class _SeedlyProgressViewState extends State<SeedlyProgressView> {
       ],
     ),
     _PlantSlot(plant.phase),
-    _dropsCard(value: plant.totalDrops, label: 'Gotas acumuladas'),
     Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
+        _dropsCard(value: plant.totalDrops, label: 'Gotas acumuladas'),
+        SizedBox(height: 24 * _layoutScale),
         SeedlyButton(
           label: 'Seguir regando',
           expand: true,
           leading: SvgPicture.asset('assets/images/progress_drop_white.svg'),
           onPressed: _water,
         ),
-        const SizedBox(height: 48),
+        SizedBox(height: 48 * _layoutScale),
         const _ProgressDecoration(),
       ],
     ),
@@ -437,24 +478,25 @@ class _PlantSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = math.min(1.0, MediaQuery.sizeOf(context).width / 440);
     final width = math.max(
       1.0,
-      math.min(300.0, MediaQuery.sizeOf(context).width - 64),
+      math.min(300 * scale, MediaQuery.sizeOf(context).width - 64 * scale),
     );
-    final scale = width / 300;
+    final plantScale = width / 300;
     return SizedBox(
       width: width,
-      height: 330.775 * scale,
+      height: 330.775 * plantScale,
       child: Stack(
         children: [
           Positioned.fill(
             child: SvgPicture.asset('assets/images/progress_blob.svg'),
           ),
           Positioned(
-            top: 14 * scale,
+            top: 14 * plantScale,
             left: 0,
             right: 0,
-            height: 303 * scale,
+            height: 303 * plantScale,
             child: Center(child: SeedlyPlant(phase: phase)),
           ),
         ],
