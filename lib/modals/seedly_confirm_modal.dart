@@ -103,6 +103,8 @@ class SeedlyConfirmContent extends StatelessWidget {
               fontSize: 28,
               height: 34 / 28,
               fontWeight: FontWeight.w600,
+              // Figma's 2px, as in the delete modals' titles.
+              letterSpacing: 2,
               color: SeedlyPalette.neutral[850],
             ),
           ),
