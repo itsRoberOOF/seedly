@@ -12,8 +12,10 @@ import '../widgets/seedly_modal.dart';
 /// Completes with true only when the person confirms; "Cancelar", the
 /// barrier and a swipe down all complete with false.
 ///
-/// [illustration] is a 100px SVG in the modal's red; [confirmIcon] is drawn
-/// white in the red button, as Figma's trash is.
+/// [illustration] is a 100px SVG; [confirmIcon] is drawn white in the confirm
+/// button, as Figma's trash is. By default the modal is red; [confirmColor]
+/// and [blobColor] tint the button and the blob behind the illustration for a
+/// non-destructive variant, such as the green "terminar riego".
 Future<bool> showSeedlyConfirmModal(
   BuildContext context, {
   required String illustration,
@@ -22,6 +24,9 @@ Future<bool> showSeedlyConfirmModal(
   required String confirmLabel,
   String? confirmIcon,
   String cancelLabel = 'Cancelar',
+  Color? confirmColor,
+  Color? blobColor,
+  Color? illustrationColor,
 }) async {
   final confirmed = await showSeedlyModal<bool>(
     context,
@@ -34,6 +39,9 @@ Future<bool> showSeedlyConfirmModal(
       confirmLabel: confirmLabel,
       confirmIcon: confirmIcon,
       cancelLabel: cancelLabel,
+      confirmColor: confirmColor,
+      blobColor: blobColor,
+      illustrationColor: illustrationColor,
     ),
   );
   return confirmed ?? false;
@@ -49,6 +57,9 @@ class SeedlyConfirmContent extends StatelessWidget {
     required this.confirmLabel,
     this.confirmIcon,
     this.cancelLabel = 'Cancelar',
+    this.confirmColor,
+    this.blobColor,
+    this.illustrationColor,
   });
 
   final String illustration;
@@ -57,6 +68,13 @@ class SeedlyConfirmContent extends StatelessWidget {
   final String confirmLabel;
   final String? confirmIcon;
   final String cancelLabel;
+
+  /// The confirm button's colour and the blob behind the illustration; both
+  /// default to Figma's red. [illustrationColor] recolours the illustration
+  /// SVG; null keeps its own colours.
+  final Color? confirmColor;
+  final Color? blobColor;
+  final Color? illustrationColor;
 
   /// Phones shorter than this get a smaller illustration and tighter gaps,
   /// so the buttons are on screen without scrolling the modal.
@@ -68,6 +86,8 @@ class SeedlyConfirmContent extends StatelessWidget {
     // Figma: a 200px blob with the 100px icon centred on it.
     final blob = compact ? 140.0 : 200.0;
     final gap = compact ? 24.0 : 48.0;
+    final confirmColor = this.confirmColor ?? SeedlyPalette.danger[600]!;
+    final blobColor = this.blobColor ?? SeedlyPalette.danger[200]!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -82,12 +102,16 @@ class SeedlyConfirmContent extends StatelessWidget {
                   width: blob,
                   height: blob,
                   excludeFromSemantics: true,
+                  colorFilter: ColorFilter.mode(blobColor, BlendMode.srcIn),
                 ),
                 SvgPicture.asset(
                   illustration,
                   width: blob / 2,
                   height: blob / 2,
                   excludeFromSemantics: true,
+                  colorFilter: illustrationColor == null
+                      ? null
+                      : ColorFilter.mode(illustrationColor!, BlendMode.srcIn),
                 ),
               ],
             ),
@@ -142,7 +166,7 @@ class SeedlyConfirmContent extends StatelessWidget {
               child: SeedlyButton(
                 label: confirmLabel,
                 size: SeedlyButtonSize.large,
-                color: SeedlyPalette.danger[600],
+                color: confirmColor,
                 expand: true,
                 leading: confirmIcon == null
                     ? null

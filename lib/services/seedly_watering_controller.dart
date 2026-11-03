@@ -6,7 +6,6 @@ import '../models/seedly_errors.dart';
 import '../models/seedly_project.dart';
 import '../models/seedly_watering.dart';
 import '../repositories/seedly_drops_repository.dart';
-import '../utils/seedly_dates.dart';
 import 'seedly_notification_service.dart';
 import 'seedly_watering_store.dart';
 
@@ -352,10 +351,10 @@ class SeedlyWateringController extends ChangeNotifier {
       () => notifications.showWateringSessionNotification(
         sessionId: session.id,
         title: endsAt == null ? _pausedTitle : _runningTitle,
-        body: endsAt == null
-            ? _pausedBody
-            : '${session.focusTitle ?? 'Sesión libre'} · termina a las '
-                  '${SeedlyDates.time(endsAt.hour * 60 + endsAt.minute)}',
+        // Con sesión corriendo el tiempo restante lo lleva la cuenta regresiva
+        // viva del aviso (ver [endsAt] en la capa de notificaciones), así que
+        // el cuerpo solo nombra el enfoque.
+        body: endsAt == null ? _pausedBody : session.focusTitle ?? 'Sesión libre',
         endsAt: endsAt,
       ),
     );

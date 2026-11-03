@@ -337,6 +337,12 @@ class FlutterSeedlyNotificationService implements SeedlyNotificationService {
           silent: true,
           onlyAlertOnce: true,
           timeoutAfter: left == null ? null : math.max(left, 1),
+          // Con [endsAt] el aviso lleva una cuenta regresiva viva hasta el
+          // final de la sesión; en pausa ([endsAt] nulo) no se muestra reloj.
+          showWhen: endsAt != null,
+          when: endsAt?.millisecondsSinceEpoch,
+          usesChronometer: endsAt != null,
+          chronometerCountDown: true,
         ),
         iOS: const DarwinNotificationDetails(presentSound: false),
         macOS: const DarwinNotificationDetails(presentSound: false),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedly/modals/seedly_confirm_modal.dart';
 import 'package:seedly/models/seedly_errors.dart';
 import 'package:seedly/models/seedly_project.dart';
 import 'package:seedly/screens/seedly_watering_view.dart';
@@ -88,6 +89,29 @@ void main() {
   Future<void> begin(WidgetTester tester) async {
     await tapButton(tester, 'Comenzar sesión');
     await tester.pump();
+  }
+
+  /// Pulsa un botón del modal verde (su "Terminar" es distinto del de la
+  /// pantalla, así que se busca dentro del contenido del modal). El contenido
+  /// scrollea en pantallas cortas, de ahí el ensureVisible.
+  Future<void> confirmModal(WidgetTester tester, String label) async {
+    final button = find.descendant(
+      of: find.byType(SeedlyConfirmContent),
+      matching: find.widgetWithText(SeedlyButton, label),
+    );
+    await tester.ensureVisible(button);
+    await tester.pump();
+    await tester.tap(button);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  /// Termina como la persona: "Terminar" abre el modal verde y hay que
+  /// confirmar.
+  Future<void> endSession(WidgetTester tester) async {
+    await tapButton(tester, 'Terminar');
+    await tester.pump(const Duration(milliseconds: 500));
+    await confirmModal(tester, 'Terminar');
   }
 
   group('Empezar riego', () {
@@ -263,15 +287,6 @@ void main() {
       expect(find.text('Sesión de Riego'), findsOneWidget);
       await close(tester);
     });
-
-    testWidgets('la flecha atrás vuelve a Inicio', (tester) async {
-      await pumpView(tester);
-
-      await tester.tap(find.byTooltip('Volver'));
-
-      expect(homeCalls, 1);
-      await close(tester);
-    });
   });
 
   group('Regando', () {
@@ -315,16 +330,40 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('la flecha atrás vuelve a Inicio sin cortar la sesión', (
+    testWidgets('la flecha atrás ofrece terminar y se queda en Riego', (
+      tester,
+    ) async {
+      await pumpView(tester);
+      await begin(tester);
+      wait(const Duration(minutes: 10));
+
+      await tester.tap(find.byTooltip('Volver'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('¿Terminar riego?'), findsOneWidget);
+
+      await confirmModal(tester, 'Terminar');
+
+      // No vuelve a Inicio: termina y se queda en Riego mostrando el fin.
+      expect(homeCalls, 0);
+      expect(controller.stage, SeedlyWateringStage.done);
+      expect(find.text('¡Buen trabajo!'), findsOneWidget);
+      await close(tester);
+    });
+
+    testWidgets('cancelar el modal de terminar deja la sesión corriendo', (
       tester,
     ) async {
       await pumpView(tester);
       await begin(tester);
 
       await tester.tap(find.byTooltip('Volver'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await confirmModal(tester, 'Cancelar');
 
-      expect(homeCalls, 1);
       expect(controller.stage, SeedlyWateringStage.watering);
+      expect(homeCalls, 0);
       await close(tester);
     });
 
@@ -333,8 +372,7 @@ void main() {
       await begin(tester);
       wait(const Duration(seconds: 30));
 
-      await tapButton(tester, 'Terminar');
-      await tester.pump();
+      await endSession(tester);
 
       expect(find.text('Sesión muy corta'), findsOneWidget);
       expect(find.text('Sesión de Riego'), findsOneWidget);
@@ -350,13 +388,11 @@ void main() {
       wait(const Duration(minutes: 10));
       drops.error = saveFailed;
 
-      await tapButton(tester, 'Terminar');
-      await tester.pump();
+      await endSession(tester);
       expect(find.text('No se pudo terminar el riego'), findsOneWidget);
       expect(find.text('Regando tu Seedly'), findsOneWidget);
 
-      await tapButton(tester, 'Terminar');
-      await tester.pump();
+      await endSession(tester);
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('¿Descartar la sesión?'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Descartar'));
@@ -375,8 +411,7 @@ void main() {
       await begin(tester);
       wait(const Duration(minutes: 10));
 
-      await tapButton(tester, 'Terminar');
-      await tester.pump();
+      await endSession(tester);
 
       expect(find.text('¡Buen trabajo!'), findsOneWidget);
       expect(
@@ -412,8 +447,7 @@ void main() {
       await pumpView(tester);
       await begin(tester);
       wait(const Duration(minutes: 10));
-      await tapButton(tester, 'Terminar');
-      await tester.pump();
+      await endSession(tester);
 
       await tapButton(tester, 'Volver al inicio');
 
@@ -430,8 +464,7 @@ void main() {
     await pumpView(tester);
     await begin(tester);
     wait(const Duration(minutes: 10));
-    await tapButton(tester, 'Terminar');
-    await tester.pump();
+    await endSession(tester);
     expect(controller.stage, SeedlyWateringStage.done);
 
     await tester.pumpWidget(const SizedBox());
@@ -452,8 +485,7 @@ void main() {
     expect(tester.takeException(), isNull);
 
     wait(const Duration(minutes: 10));
-    await tapButton(tester, 'Terminar');
-    await tester.pump();
+    await endSession(tester);
     expect(tester.takeException(), isNull);
     await close(tester);
   });

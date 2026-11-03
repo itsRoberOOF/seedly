@@ -161,7 +161,7 @@ void main() {
         await service.showWateringSessionNotification(
           sessionId: 's1',
           title: 'Regando tu Seedly',
-          body: 'Sesión libre · termina a las 10:25 AM',
+          body: 'Sesión libre',
           endsAt: endsAt,
         );
 
@@ -177,17 +177,25 @@ void main() {
           android.timeoutAfter,
           closeTo(const Duration(minutes: 25).inMilliseconds, 5000),
         );
+        // Cuenta regresiva viva hacia el final de la sesión.
+        expect(android.usesChronometer, isTrue);
+        expect(android.chronometerCountDown, isTrue);
+        expect(android.showWhen, isTrue);
+        expect(android.when, endsAt.millisecondsSinceEpoch);
       },
     );
 
-    test('en pausa el aviso no tiene final', () async {
+    test('en pausa el aviso no tiene final ni cuenta regresiva', () async {
       await service.showWateringSessionNotification(
         sessionId: 's1',
         title: 'Riego en pausa',
         body: 'Vuelve a Seedly para reanudar tu sesión.',
       );
 
-      expect(plugin.shown.values.single.details!.android!.timeoutAfter, isNull);
+      final android = plugin.shown.values.single.details!.android!;
+      expect(android.timeoutAfter, isNull);
+      expect(android.usesChronometer, isFalse);
+      expect(android.when, isNull);
     });
 
     test('programa el fin y lo cancela sin tocar el aviso fijo', () async {

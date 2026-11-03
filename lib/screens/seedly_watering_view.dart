@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../modals/seedly_confirm_modal.dart';
 import '../modals/seedly_duration_modal.dart';
+import '../modals/seedly_end_watering_modal.dart';
 import '../modals/seedly_focus_task_modal.dart';
 import '../models/seedly_drops.dart';
 import '../models/seedly_errors.dart';
@@ -46,11 +47,17 @@ class SeedlyWateringView extends StatefulWidget {
   final VoidCallback onHome;
 
   /// Cuánto se achica la planta de "Empezar riego", donde ocupa el lugar de
-  /// la ilustración de la regadera, para que entren las opciones.
-  static const startPlantScale = 0.6;
+  /// la ilustración de la regadera, para que entren las opciones sin que la
+  /// tarjeta de enfoque y el botón de empezar queden fuera de pantalla.
+  static const startPlantScale = 0.45;
 
-  /// La planta de "Regando" y "Fin de riego", como en Inicio.
-  static const plantScale = 0.85;
+  /// La planta de "Regando": un 10% más chica que en Inicio para que la
+  /// pantalla entre fija, sin scroll.
+  static const plantScale = 0.765;
+
+  /// La planta de "Fin de riego", más chica que en "Regando" para que la
+  /// tarjeta de gotas y "Volver al inicio" entren sin tanto scroll.
+  static const donePlantScale = 0.6;
 
   @override
   State<SeedlyWateringView> createState() => _SeedlyWateringViewState();
@@ -126,22 +133,23 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
   Widget _stage(SeedlyPlantState plant) {
     final result = _controller.result;
     final session = _controller.session;
+    const padding = EdgeInsets.fromLTRB(24, 16, 24, 24);
+    // "Regando" entra entera, así que se queda fija con el header arriba como
+    // en Proyectos; "Empezar" y "Fin" sí pueden desplazarse.
+    if (_controller.stage == SeedlyWateringStage.watering && session != null) {
+      return SafeArea(
+        bottom: false,
+        child: Padding(padding: padding, child: _watering(session, plant)),
+      );
+    }
     final stage = switch (_controller.stage) {
-      SeedlyWateringStage.loading => null,
       SeedlyWateringStage.ready => _start(plant),
-      SeedlyWateringStage.watering when session != null => _watering(
-        session,
-        plant,
-      ),
       SeedlyWateringStage.done when result != null => _done(result, plant),
       _ => null,
     };
     return SafeArea(
       bottom: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-        child: stage,
-      ),
+      child: SingleChildScrollView(padding: padding, child: stage),
     );
   }
 
@@ -152,21 +160,24 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SeedlyHeader(title: 'Sesión de Riego', onBack: widget.onHome),
-        const SizedBox(height: 24),
-        _paragraph('Concéntrate en una tarea mientras tu planta recibe agua'),
+        _sectionTitle('Sesión de Riego'),
         const SizedBox(height: 16),
+        _paragraph(
+          'Concéntrate en una tarea mientras tu planta recibe agua',
+          align: TextAlign.left,
+        ),
+        const SizedBox(height: 8),
         Center(
           child: SeedlyPlantBlob(
             phase: plant.phase,
             scale: SeedlyWateringView.startPlantScale,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         _caps('Duración de la sesión', center: true),
         const SizedBox(height: 16),
         _durations(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Center(
           child: SeedlyButton(
             label: custom
@@ -186,9 +197,9 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
             onPressed: _pickMinutes,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         _FocusCard(focus: _focus, onChoose: _pickFocus),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         SeedlyButton(
           label: 'Comenzar sesión',
           expand: true,
@@ -282,7 +293,12 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SeedlyHeader(title: 'Regando tu Seedly', onBack: widget.onHome),
+        SeedlyHeader(
+          title: 'Regando tu Seedly',
+          // La flecha ya no vuelve a Inicio: ofrece terminar la sesión y, al
+          // aceptar, se queda en Riego mostrando el fin.
+          onBack: _confirmFinish,
+        ),
         const SizedBox(height: 24),
         Center(
           child: SeedlyPlantBlob(
@@ -364,7 +380,7 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
             semanticsLabel: 'Progreso de la sesión',
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 24),
         Row(
           spacing: 16,
           children: [
@@ -373,7 +389,7 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
                 label: 'Terminar',
                 variant: SeedlyButtonVariant.outline,
                 expand: true,
-                onPressed: busy ? null : _finish,
+                onPressed: busy ? null : _confirmFinish,
               ),
             ),
             // Con la cuenta en cero ya no hay nada que pausar.
@@ -398,6 +414,15 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
         ),
       ],
     );
+  }
+
+  /// Pregunta con el modal verde antes de terminar; tanto la flecha "Volver"
+  /// como "Terminar" pasan por aquí. Al aceptar se cierra la sesión y Riego se
+  /// queda mostrando el fin.
+  Future<void> _confirmFinish() async {
+    if (_controller.busy) return;
+    final end = await showSeedlyEndWateringModal(context);
+    if (end && mounted) await _finish();
   }
 
   Future<void> _finish() async {
@@ -472,7 +497,7 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Semantics(
           header: true,
           child: Text(
@@ -492,21 +517,21 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
           'Gracias a tu esfuerzo y tiempo de enfoque, tu planta ha recibido '
           'agua',
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         Center(
           child: SeedlyPlantBlob(
             phase: plant.phase,
-            scale: SeedlyWateringView.plantScale,
+            scale: SeedlyWateringView.donePlantScale,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         Center(
           child: _DropsCard(
             drops: result.drops,
             total: widget.drops == null ? null : plant.totalDrops,
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
         SeedlyButton(
           label: 'Volver al inicio',
           expand: true,
@@ -516,21 +541,39 @@ class _SeedlyWateringViewState extends State<SeedlyWateringView> {
             widget.onHome();
           },
         ),
+        const SizedBox(height: 16),
       ],
     );
   }
 
   // Piezas comunes.
 
-  static Widget _paragraph(String text) => Text(
-    text,
-    textAlign: TextAlign.center,
-    style: TextStyle(
-      fontSize: 16,
-      height: 24 / 16,
-      color: SeedlyPalette.neutral[700],
+  /// El encabezado de sección, igual que Perfil y Proyectos: Riego es una
+  /// pestaña del menú principal, así que no lleva flecha de volver.
+  static Widget _sectionTitle(String text) => Semantics(
+    header: true,
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 32,
+        height: 38 / 32,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2,
+        color: SeedlyPalette.neutral[850],
+      ),
     ),
   );
+
+  static Widget _paragraph(String text, {TextAlign align = TextAlign.center}) =>
+      Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          fontSize: 16,
+          height: 24 / 16,
+          color: SeedlyPalette.neutral[700],
+        ),
+      );
 
   /// Las etiquetas en mayúsculas espaciadas de Figma.
   static Widget _caps(String text, {bool center = false}) => Text(
@@ -573,73 +616,85 @@ class _FocusCard extends StatelessWidget {
         border: Border.all(color: SeedlyPalette.border),
         boxShadow: SeedlyShadows.card,
       ),
-      child: Row(
-        spacing: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: SeedlyPalette.neutral[200],
-              borderRadius: BorderRadius.circular(SeedlyMetrics.radii['md']!),
-            ),
-            child: SvgPicture.asset(
-              focus == null
-                  ? 'assets/images/icon_question.svg'
-                  : 'assets/images/icon_check.svg',
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                SeedlyPalette.primary[600]!,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 4,
-              children: [
-                Text(
-                  'ENFOQUE DE HOY',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 16 / 12,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 2,
-                    color: SeedlyPalette.neutral[700],
+          Row(
+            spacing: 12,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: SeedlyPalette.neutral[200],
+                  borderRadius: BorderRadius.circular(
+                    SeedlyMetrics.radii['md']!,
                   ),
                 ),
-                Text(
-                  focus?.title ?? 'Sesión libre',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 24 / 16,
-                    color: SeedlyPalette.neutral[850],
-                  ),
-                ),
-                Text(
+                child: SvgPicture.asset(
                   focus == null
-                      ? 'Enfócate sin una tarea definida o elige una si lo '
-                            'prefieres.'
-                      : 'Tu sesión irá dedicada a esta tarea.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 14 / 10,
-                    color: SeedlyPalette.neutral[600],
+                      ? 'assets/images/icon_question.svg'
+                      : 'assets/images/icon_check.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(
+                    SeedlyPalette.primary[600]!,
+                    BlendMode.srcIn,
                   ),
                 ),
-              ],
-            ),
+              ),
+              // El texto ocupa todo el ancho libre: antes el botón "Elegir
+              // tarea" iba al lado y "ENFOQUE DE HOY" se cortaba a la mitad.
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      'ENFOQUE DE HOY',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 16 / 12,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 2,
+                        color: SeedlyPalette.neutral[700],
+                      ),
+                    ),
+                    Text(
+                      focus?.title ?? 'Sesión libre',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 24 / 16,
+                        color: SeedlyPalette.neutral[850],
+                      ),
+                    ),
+                    Text(
+                      focus == null
+                          ? 'Enfócate sin una tarea definida o elige una si lo '
+                                'prefieres.'
+                          : 'Tu sesión irá dedicada a esta tarea.',
+                      style: TextStyle(
+                        fontSize: 10,
+                        height: 14 / 10,
+                        color: SeedlyPalette.neutral[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
           SeedlyButton(
             label: focus == null ? 'Elegir tarea' : 'Cambiar',
             variant: SeedlyButtonVariant.outline,
             size: SeedlyButtonSize.small,
+            expand: true,
             onPressed: onChoose,
           ),
         ],

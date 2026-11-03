@@ -128,7 +128,7 @@ void main() {
       final endsAt = now.add(const Duration(minutes: 25));
       expect(notifications.wateringNotices['session1'], (
         title: 'Regando tu Seedly',
-        body: 'Sesión libre · termina a las 10:25 AM',
+        body: 'Sesión libre',
         endsAt: endsAt,
       ));
       expect(notifications.wateringEnds['session1'], (
@@ -151,10 +151,7 @@ void main() {
 
       expect(controller.session?.focusTaskId, 't1');
       expect(controller.session?.focusTitle, 'Estudiar');
-      expect(
-        notifications.wateringNotices['session1']?.body,
-        startsWith('Estudiar · '),
-      );
+      expect(notifications.wateringNotices['session1']?.body, 'Estudiar');
     });
 
     test('una sesión a la vez', () async {
